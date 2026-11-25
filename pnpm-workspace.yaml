@@ -4,3 +4,9 @@ allowBuilds:
   '@scarf/scarf': false
   argon2: true
   prisma: true
+
+# Security overrides (CI job 9 "audit" fails on high/critical).
+# effect: @prisma/config@7.10.1 pins 3.20.0, affected by GHSA-7589-6fvf-x4pw (ReDoS, fixed in 3.22.1).
+# Remove once a Prisma release ships a patched effect.
+overrides:
+  effect: 3.22.5

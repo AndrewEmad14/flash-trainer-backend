@@ -42,7 +42,9 @@ jobs:
       - name: TruffleHog (verified secrets only)
         uses: trufflesecurity/trufflehog@v3.100.1
         with:
-          extra_args: --results=verified --fail
+          # The action already passes --fail, so it must not be repeated here.
+          version: 3.100.1
+          extra_args: --results=verified
 
   # 2. Install (lockfile in sync)
   install:
