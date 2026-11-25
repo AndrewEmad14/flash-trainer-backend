@@ -1,0 +1,27 @@
+# --- Your existing entries (kept as you wrote them) ---
+specs/*
+.specify
+.docs
+
+# --- Dependencies & build output ---
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+src/generated/
+openapi.json
+
+# --- Environment & secrets (never commit real values) ---
+.env
+.env.*
+!.env.example
+
+# --- Logs & OS/editor files ---
+*.log
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/

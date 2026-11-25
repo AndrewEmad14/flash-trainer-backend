@@ -1,0 +1,152 @@
+# Constitution "Continuous Integration": every job below is blocking. `main` must require all of them.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Non-secret, CI-only values so config validation passes. Real secrets never live in the repo.
+env:
+  NODE_ENV: test
+  PORT: '3000'
+  LOG_LEVEL: warn
+  DATABASE_URL: postgresql://flash:flash_ci_password@localhost:5432/flash_trainer_test
+  TEST_DATABASE_URL: postgresql://flash:flash_ci_password@localhost:5432/flash_trainer_test
+  JWT_ACCESS_SECRET: ci-only-access-secret-not-used-anywhere-else-0123456789
+  JWT_ACCESS_TTL: '900'
+  JWT_EMAIL_SECRET: ci-only-email-secret-not-used-anywhere-else-0123456789
+  REFRESH_TOKEN_TTL_DAYS: '30'
+  APP_LINK_BASE_URL: http://localhost:3000/api/v1/links
+  APP_DEEP_LINK_SCHEME: flashtrainer
+  MAIL_DRIVER: console
+  CORS_ORIGINS: http://localhost:3000
+  SWAGGER_ENABLED: 'true'
+
+jobs:
+  # 1. Secret scan
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: TruffleHog (verified secrets only)
+        uses: trufflesecurity/trufflehog@v3.100.1
+        with:
+          extra_args: --results=verified --fail
+
+  # 2. Install (lockfile in sync)
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/setup
+
+  # 3. Lint & format
+  lint:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+      - run: pnpm format:check
+
+  # 4. Type check
+  typecheck:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  # 5. Build
+  build:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+
+  # 6. Unit tests + coverage (thresholds live in jest.config.ts)
+  unit-coverage:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm test:cov
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: coverage
+          path: coverage/
+
+  # 7. E2E tests against a real Postgres (migrations run in test/utils/global-setup.ts)
+  e2e:
+    needs: install
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: flash
+          POSTGRES_PASSWORD: flash_ci_password
+          POSTGRES_DB: flash_trainer_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U flash" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm test:e2e
+
+  # 8. Boot & OpenAPI check: the built app must start, be healthy, and produce a valid OpenAPI doc
+  boot-check:
+    needs: install
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: flash
+          POSTGRES_PASSWORD: flash_ci_password
+          POSTGRES_DB: flash_trainer_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U flash" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm prisma:deploy
+      - run: pnpm build
+      - name: Start app and check health
+        run: |
+          node dist/main > app.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://localhost:3000/api/v1/health; then echo; echo "healthy"; exit 0; fi
+            sleep 1
+          done
+          echo "App did not become healthy"; cat app.log; exit 1
+      - run: pnpm openapi:generate
+
+  # 9. Dependency audit
+  audit:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm audit --audit-level=high

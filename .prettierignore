@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+prisma/migrations
+src/generated
+pnpm-lock.yaml
+pnpm-workspace.yaml
+openapi.json
+.specify
+.claude
+.docs
+specs

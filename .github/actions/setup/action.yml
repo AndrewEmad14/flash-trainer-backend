@@ -1,0 +1,16 @@
+name: Setup Node + pnpm
+description: Installs pnpm and Node (versions from package.json / .nvmrc), restores the pnpm cache, installs deps and generates the Prisma client.
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6.1.1
+    - uses: actions/setup-node@v7.1.0
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+    - name: Install dependencies (lockfile must be in sync)
+      shell: bash
+      run: pnpm install --frozen-lockfile
+    - name: Generate Prisma client
+      shell: bash
+      run: pnpm prisma:generate
