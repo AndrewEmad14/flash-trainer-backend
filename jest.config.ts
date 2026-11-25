@@ -8,7 +8,11 @@ const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: 'src',
   testRegex: '.*\\.spec\\.ts$',
-  transform: { '^.+\\.(t|j)s$': 'ts-jest' },
+  // Unit tests build classes directly with test doubles (no Nest DI), so decorator metadata
+  // isn't needed. Without it, TypeScript stops generating `typeof X !== "undefined"` branches
+  // for every constructor parameter, and the branch-coverage gate measures only our code.
+  // e2e tests (test/jest-e2e.json) keep the metadata and exercise real DI.
+  transform: { '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: '<rootDir>/../tsconfig.spec.json' }] },
   // The generated Prisma client imports its own .ts files with .js extensions (nodenext).
   moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' },
   testEnvironment: 'node',
