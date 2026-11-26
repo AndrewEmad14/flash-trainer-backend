@@ -44,6 +44,7 @@ describe('AuthService', () => {
     findByIdentifier: jest.fn(),
     findById: jest.fn(),
     updatePasswordHash: jest.fn(),
+    deleteUser: jest.fn(),
   };
   const passwords = { hash: jest.fn(), verify: jest.fn(), verifyDummy: jest.fn() };
   const loginThrottle = {
@@ -241,6 +242,40 @@ describe('AuthService', () => {
       users.findById.mockResolvedValue(null);
 
       await expect(service.changePassword('gone', 's1', dto)).rejects.toMatchObject({
+        code: ErrorCode.AUTH_TOKEN_INVALID,
+      });
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('should delete the user and their sign-in throttle row after checking the password', async () => {
+      users.findById.mockResolvedValue(storedUser);
+      passwords.verify.mockResolvedValue(true);
+
+      await service.deleteAccount('u1', 's3cretPass');
+
+      expect(passwords.verify).toHaveBeenCalledWith('argon-hash', 's3cretPass');
+      expect(users.deleteUser).toHaveBeenCalledWith('u1');
+      expect(loginThrottle.reset).toHaveBeenCalledWith('user:u1');
+    });
+
+    it.each([
+      ['a wrong password', storedUser, false],
+      ['an account without a password', { ...storedUser, passwordHash: null }, true],
+    ])('should refuse %s with 403 and delete nothing', async (_case, user, verifies) => {
+      users.findById.mockResolvedValue(user);
+      passwords.verify.mockResolvedValue(verifies);
+
+      await expect(service.deleteAccount('u1', 'x')).rejects.toMatchObject({
+        code: ErrorCode.AUTH_CURRENT_PASSWORD_INCORRECT,
+      });
+      expect(users.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it('should throw AUTH_TOKEN_INVALID when the account no longer exists', async () => {
+      users.findById.mockResolvedValue(null);
+
+      await expect(service.deleteAccount('gone', 'x')).rejects.toMatchObject({
         code: ErrorCode.AUTH_TOKEN_INVALID,
       });
     });

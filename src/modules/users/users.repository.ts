@@ -117,4 +117,15 @@ export class UsersRepository {
   async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
     await this.prisma.user.update({ where: { id }, data: { passwordHash } });
   }
+
+  /**
+   * Permanently deletes a user. The database cascades to sessions, reset requests and email
+   * dispatches (data-model.md AuthSession.userId, PasswordReset.userId, EmailDispatch.userId).
+   *
+   * @returns `false` if the user was already gone (e.g. a simultaneous delete).
+   */
+  async deleteById(id: string): Promise<boolean> {
+    const { count } = await this.prisma.user.deleteMany({ where: { id } });
+    return count === 1;
+  }
 }

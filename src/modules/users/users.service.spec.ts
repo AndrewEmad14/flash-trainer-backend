@@ -20,6 +20,7 @@ describe('UsersService', () => {
     findById: jest.fn(),
     markEmailVerified: jest.fn(),
     updatePasswordHash: jest.fn(),
+    deleteById: jest.fn(),
   };
   const service = new UsersService(repository as unknown as UsersRepository);
 
@@ -131,6 +132,24 @@ describe('UsersService', () => {
       await service.updatePasswordHash('u1', 'h');
 
       expect(repository.updatePasswordHash).toHaveBeenCalledWith('u1', 'h');
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('should delete the user', async () => {
+      repository.deleteById.mockResolvedValue(true);
+
+      await service.deleteUser('u1');
+
+      expect(repository.deleteById).toHaveBeenCalledWith('u1');
+    });
+
+    it('should throw AUTH_TOKEN_INVALID when the user is already gone', async () => {
+      repository.deleteById.mockResolvedValue(false);
+
+      await expect(service.deleteUser('u1')).rejects.toMatchObject({
+        code: ErrorCode.AUTH_TOKEN_INVALID,
+      });
     });
   });
 });

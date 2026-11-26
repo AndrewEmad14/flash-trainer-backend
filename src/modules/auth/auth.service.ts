@@ -107,4 +107,26 @@ export class AuthService {
     await this.sessions.revokeAll(userId, sessionId);
     await this.users.updatePasswordHash(userId, passwordHash);
   }
+
+  /**
+   * Permanently deletes the signed-in user's account after confirming the password (US11,
+   * FR-028, FR-029). Every device loses access: refresh fails at once, and the remaining
+   * access tokens are refused because the account is gone.
+   *
+   * @throws AppException AUTH_CURRENT_PASSWORD_INCORRECT (403) for a wrong password, or an
+   *   account without one.
+   * @throws AppException AUTH_TOKEN_INVALID when the account no longer exists.
+   */
+  async deleteAccount(userId: string, password: string): Promise<void> {
+    const user = await this.users.findById(userId);
+    if (!user) throw new AppException(ErrorCode.AUTH_TOKEN_INVALID);
+    const isValid = user.passwordHash
+      ? await this.passwords.verify(user.passwordHash, password)
+      : false;
+    if (!isValid) throw new AppException(ErrorCode.AUTH_CURRENT_PASSWORD_INCORRECT);
+
+    await this.users.deleteUser(userId);
+    // login_attempts has no FK (keys can be unknown identifiers), so clean this account's row here.
+    await this.loginThrottle.reset(this.loginThrottle.keyFor(userId, ''));
+  }
 }
