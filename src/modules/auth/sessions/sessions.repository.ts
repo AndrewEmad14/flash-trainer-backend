@@ -49,4 +49,57 @@ export class SessionsRepository {
     });
     return count === 1;
   }
+
+  /**
+   * Revokes one session: sets `revokedAt` and clears its push token (research R13).
+   * Only active rows are touched, so revoking twice keeps the original revocation time.
+   */
+  async revoke(id: string): Promise<void> {
+    await this.prisma.authSession.updateMany({
+      where: { id, revokedAt: null },
+      data: { revokedAt: new Date(), fcmToken: null },
+    });
+  }
+
+  /**
+   * Revokes every active session of a user, optionally keeping one (e.g. the current device
+   * on password change).
+   *
+   * @returns How many sessions were revoked.
+   */
+  async revokeAllForUser(
+    userId: string,
+    options: { exceptSessionId?: string } = {},
+  ): Promise<number> {
+    const { count } = await this.prisma.authSession.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        ...(options.exceptSessionId ? { id: { not: options.exceptSessionId } } : {}),
+      },
+      data: { revokedAt: new Date(), fcmToken: null },
+    });
+    return count;
+  }
+
+  /**
+   * A user's active sessions (data-model.md: `revoked_at IS NULL AND expires_at > now`),
+   * most recently used first.
+   */
+  listActive(userId: string): Promise<AuthSession[]> {
+    return this.prisma.authSession.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: [{ lastUsedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  /**
+   * An active session only if it belongs to `userId`, so callers can't learn about other
+   * users' sessions (FR-031).
+   */
+  findActiveByIdForUser(id: string, userId: string): Promise<AuthSession | null> {
+    return this.prisma.authSession.findFirst({
+      where: { id, userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    });
+  }
 }

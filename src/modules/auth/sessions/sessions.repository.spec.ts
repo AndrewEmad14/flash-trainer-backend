@@ -5,6 +5,7 @@ describe('SessionsRepository', () => {
   const authSession = { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() };
   const repository = new SessionsRepository({ authSession } as unknown as PrismaService);
 
+  beforeEach(() => jest.clearAllMocks());
   afterEach(() => jest.useRealTimers());
 
   it('should create a session with lastUsedAt set to now', async () => {
@@ -44,6 +45,63 @@ describe('SessionsRepository', () => {
     expect(authSession.updateMany).toHaveBeenCalledWith({
       where: { id: 's1', refreshTokenHash: 'h1', revokedAt: null },
       data,
+    });
+  });
+
+  it('should revoke one active session and clear its push token', async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-25T10:00:00Z') });
+    authSession.updateMany.mockResolvedValue({ count: 1 });
+
+    await repository.revoke('s1');
+
+    expect(authSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 's1', revokedAt: null },
+      data: { revokedAt: new Date('2026-11-25T10:00:00Z'), fcmToken: null },
+    });
+  });
+
+  it('should revoke all active sessions of a user, optionally except one', async () => {
+    authSession.updateMany.mockResolvedValue({ count: 2 });
+
+    await expect(repository.revokeAllForUser('u1')).resolves.toBe(2);
+    await repository.revokeAllForUser('u1', { exceptSessionId: 's9' });
+
+    expect(authSession.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { userId: 'u1', revokedAt: null },
+      data: { revokedAt: expect.any(Date), fcmToken: null },
+    });
+    expect(authSession.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { userId: 'u1', revokedAt: null, id: { not: 's9' } },
+      data: { revokedAt: expect.any(Date), fcmToken: null },
+    });
+  });
+
+  it('should list only active sessions of the user, newest use first', async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-25T10:00:00Z') });
+    const findMany = jest.fn().mockResolvedValue([]);
+    const repo = new SessionsRepository({ authSession: { findMany } } as unknown as PrismaService);
+
+    await repo.listActive('u1');
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', revokedAt: null, expiresAt: { gt: new Date('2026-11-25T10:00:00Z') } },
+      orderBy: [{ lastUsedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+  });
+
+  it("should find an active session only within the user's own sessions", async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-25T10:00:00Z') });
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const repo = new SessionsRepository({ authSession: { findFirst } } as unknown as PrismaService);
+
+    await expect(repo.findActiveByIdForUser('s1', 'u1')).resolves.toBeNull();
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 's1',
+        userId: 'u1',
+        revokedAt: null,
+        expiresAt: { gt: new Date('2026-11-25T10:00:00Z') },
+      },
     });
   });
 });

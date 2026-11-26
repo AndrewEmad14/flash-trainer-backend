@@ -7,7 +7,11 @@ import type { SessionsService } from './sessions/sessions.service';
 
 describe('AuthController', () => {
   const auth = { register: jest.fn(), login: jest.fn() };
-  const sessions = { refresh: jest.fn() };
+  const sessions = {
+    refresh: jest.fn(),
+    logoutByRefreshToken: jest.fn(),
+    revokeAll: jest.fn(),
+  };
   const controller = new AuthController(
     auth as unknown as AuthService,
     sessions as unknown as SessionsService,
@@ -59,6 +63,30 @@ describe('AuthController', () => {
       expect(sessions.refresh).toHaveBeenCalledWith('r');
       const handler = AuthController.prototype.refresh;
       expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBe(true);
+      expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(HttpStatus.OK);
+    });
+  });
+
+  describe('logout', () => {
+    it('should sign out by refresh token, be public and return null with 200', async () => {
+      sessions.logoutByRefreshToken.mockResolvedValue(undefined);
+
+      await expect(controller.logout({ refreshToken: 'r' })).resolves.toBeNull();
+      expect(sessions.logoutByRefreshToken).toHaveBeenCalledWith('r');
+      const handler = AuthController.prototype.logout;
+      expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBe(true);
+      expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(HttpStatus.OK);
+    });
+  });
+
+  describe('logoutAll', () => {
+    it('should revoke every session of the signed-in user and be protected', async () => {
+      sessions.revokeAll.mockResolvedValue(2);
+
+      await expect(controller.logoutAll({ userId: 'u1', sessionId: 's1' })).resolves.toBeNull();
+      expect(sessions.revokeAll).toHaveBeenCalledWith('u1');
+      const handler = AuthController.prototype.logoutAll;
+      expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBeUndefined();
       expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(HttpStatus.OK);
     });
   });

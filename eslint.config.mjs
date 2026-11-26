@@ -60,7 +60,13 @@ export default tseslint.config(
       'jest/expect-expect': [
         'error',
         {
-          assertFunctionNames: ['expect', 'expectCode', 'expectErrorEnvelope', 'request.**.expect'],
+          assertFunctionNames: [
+            'expect',
+            'expectCode',
+            'expectErrorEnvelope',
+            'expectRejected',
+            'request.**.expect',
+          ],
         },
       ],
     },

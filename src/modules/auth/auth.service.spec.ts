@@ -4,6 +4,7 @@ import type { User } from '../../generated/prisma/client';
 import type { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import type { EmailVerificationService } from './email-verification/email-verification.service';
+import type { EmailDomainService } from './email-domain/email-domain.service';
 import type { LoginThrottleService } from './login-throttle/login-throttle.service';
 import type { SessionsService } from './sessions/sessions.service';
 
@@ -46,6 +47,7 @@ describe('AuthService', () => {
     reset: jest.fn(),
   };
   const sessions = { createSession: jest.fn() };
+  const emailDomain = { assertDeliverable: jest.fn() };
   const emailVerification = { sendVerificationEmail: jest.fn() };
   const service = new AuthService(
     users as unknown as UsersService,
@@ -53,6 +55,7 @@ describe('AuthService', () => {
     sessions as unknown as SessionsService,
     emailVerification as unknown as EmailVerificationService,
     loginThrottle as unknown as LoginThrottleService,
+    emailDomain as unknown as EmailDomainService,
   );
 
   beforeEach(() => {
@@ -86,6 +89,19 @@ describe('AuthService', () => {
       expect(result.tokens).toBe(tokens);
       expect(result.user).toMatchObject({ id: 'u1', isEmailVerified: false, phone: null });
       expect(result.user).not.toHaveProperty('passwordHash');
+    });
+
+    it('should check the email domain before doing anything else', async () => {
+      emailDomain.assertDeliverable.mockRejectedValue(
+        new AppException(ErrorCode.VALIDATION_FAILED),
+      );
+
+      await expect(service.register(dto)).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_FAILED,
+      });
+      expect(emailDomain.assertDeliverable).toHaveBeenCalledWith('ahmed@mail.com');
+      expect(passwords.hash).not.toHaveBeenCalled();
+      expect(users.createUser).not.toHaveBeenCalled();
     });
 
     it('should pass the phone through when given', async () => {

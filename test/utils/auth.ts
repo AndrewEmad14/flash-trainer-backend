@@ -66,6 +66,20 @@ export function refresh(app: NestExpressApplication, refreshToken: unknown): Pro
     .then((r) => r);
 }
 
+/** POST /api/v1/auth/logout (public; identifies the device by its refresh token). */
+export function logout(app: NestExpressApplication, refreshToken: unknown): Promise<Response> {
+  return request(app.getHttpServer())
+    .post('/api/v1/auth/logout')
+    .send({ refreshToken })
+    .then((r) => r);
+}
+
+/** POST /api/v1/auth/logout-all with a bearer access token. */
+export function logoutAll(app: NestExpressApplication, accessToken?: string): Promise<Response> {
+  const req = request(app.getHttpServer()).post('/api/v1/auth/logout-all');
+  return (accessToken ? req.set('Authorization', `Bearer ${accessToken}`) : req).then((r) => r);
+}
+
 /** POST /api/v1/auth/login, returning the raw response. */
 export function login(app: NestExpressApplication, payload: object): Promise<Response> {
   return request(app.getHttpServer())

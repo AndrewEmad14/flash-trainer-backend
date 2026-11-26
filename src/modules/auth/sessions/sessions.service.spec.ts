@@ -5,7 +5,15 @@ import type { SessionsRepository } from './sessions.repository';
 import { SessionsService } from './sessions.service';
 
 describe('SessionsService', () => {
-  const repository = { create: jest.fn(), findByRefreshTokenHash: jest.fn(), rotate: jest.fn() };
+  const repository = {
+    create: jest.fn(),
+    findByRefreshTokenHash: jest.fn(),
+    rotate: jest.fn(),
+    revoke: jest.fn(),
+    revokeAllForUser: jest.fn(),
+    listActive: jest.fn(),
+    findActiveByIdForUser: jest.fn(),
+  };
   const tokens = { issueRefreshToken: jest.fn(), signAccessToken: jest.fn() };
   const service = new SessionsService(
     repository as unknown as SessionsRepository,
@@ -115,6 +123,85 @@ describe('SessionsService', () => {
         code: ErrorCode.AUTH_SESSION_INVALID,
       });
       expect(tokens.signAccessToken).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logoutByRefreshToken', () => {
+    it('should revoke the active session that owns the token', async () => {
+      repository.findByRefreshTokenHash.mockResolvedValue({ id: 's1', revokedAt: null });
+
+      await service.logoutByRefreshToken('plain');
+
+      expect(repository.findByRefreshTokenHash).toHaveBeenCalledWith(sha256Hex('plain'));
+      expect(repository.revoke).toHaveBeenCalledWith('s1');
+    });
+
+    it.each([
+      ['unknown', null],
+      ['already revoked', { id: 's1', revokedAt: new Date() }],
+    ])('should do nothing, without failing, for an %s token', async (_case, session) => {
+      repository.findByRefreshTokenHash.mockResolvedValue(session);
+
+      await expect(service.logoutByRefreshToken('plain')).resolves.toBeUndefined();
+      expect(repository.revoke).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('revokeAll', () => {
+    it('should revoke every session, or all but one', async () => {
+      repository.revokeAllForUser.mockResolvedValue(3);
+
+      await expect(service.revokeAll('u1')).resolves.toBe(3);
+      await service.revokeAll('u1', 's2');
+
+      expect(repository.revokeAllForUser).toHaveBeenNthCalledWith(1, 'u1', {});
+      expect(repository.revokeAllForUser).toHaveBeenNthCalledWith(2, 'u1', {
+        exceptSessionId: 's2',
+      });
+    });
+  });
+
+  describe('listForUser', () => {
+    it('should map active sessions and mark the current one', async () => {
+      const base = {
+        userId: 'u1',
+        deviceName: null,
+        deviceOs: null,
+        createdAt: new Date('2026-11-01T00:00:00Z'),
+        lastUsedAt: new Date('2026-11-25T00:00:00Z'),
+      };
+      repository.listActive.mockResolvedValue([
+        { ...base, id: 's2' },
+        { ...base, id: 's1' },
+      ]);
+
+      const result = await service.listForUser('u1', 's1');
+
+      expect(repository.listActive).toHaveBeenCalledWith('u1');
+      expect(result.map((s) => [s.id, s.isCurrent])).toEqual([
+        ['s2', false],
+        ['s1', true],
+      ]);
+    });
+  });
+
+  describe('revokeOwnSession', () => {
+    it("should revoke the user's own active session", async () => {
+      repository.findActiveByIdForUser.mockResolvedValue({ id: 's2' });
+
+      await service.revokeOwnSession('u1', 's2');
+
+      expect(repository.findActiveByIdForUser).toHaveBeenCalledWith('s2', 'u1');
+      expect(repository.revoke).toHaveBeenCalledWith('s2');
+    });
+
+    it('should throw SESSION_NOT_FOUND for a missing, inactive or foreign session', async () => {
+      repository.findActiveByIdForUser.mockResolvedValue(null);
+
+      await expect(service.revokeOwnSession('u1', 'x')).rejects.toMatchObject({
+        code: ErrorCode.SESSION_NOT_FOUND,
+      });
+      expect(repository.revoke).not.toHaveBeenCalled();
     });
   });
 });

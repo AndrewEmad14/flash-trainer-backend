@@ -110,6 +110,11 @@ export class AppConfigService {
       .filter((origin) => origin.length > 0);
   }
 
+  /** Whether registration checks that the email's domain can receive mail (R18). */
+  get emailDnsCheckEnabled(): boolean {
+    return this.get('EMAIL_DNS_CHECK');
+  }
+
   /** Whether Swagger UI is served at `/docs` (never in production; see validateEnv). */
   get swaggerEnabled(): boolean {
     return this.get('SWAGGER_ENABLED');
