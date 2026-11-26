@@ -38,6 +38,8 @@ export enum DetailCode {
   USER_EMAIL_TAKEN = 'USER_EMAIL_TAKEN',
   USER_USERNAME_TAKEN = 'USER_USERNAME_TAKEN',
   USER_PHONE_TAKEN = 'USER_PHONE_TAKEN',
+  /** A confirmation field doesn't equal the value it confirms (FR-033). */
+  FIELD_CONFIRMATION_MISMATCH = 'FIELD_CONFIRMATION_MISMATCH',
   /** The email's domain doesn't exist or can't receive mail (registration, R18). */
   FIELD_EMAIL_DOMAIN_INVALID = 'FIELD_EMAIL_DOMAIN_INVALID',
 }

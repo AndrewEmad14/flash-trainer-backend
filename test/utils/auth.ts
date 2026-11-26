@@ -6,6 +6,7 @@ export interface RegisterPayload {
   username: string;
   email: string;
   password: string;
+  passwordConfirmation?: string;
   phone?: string;
   deviceName?: string;
   deviceOs?: string;
@@ -39,7 +40,7 @@ let counter = 0;
 /** A valid, unique registration payload. Override any field per test. */
 export function newUser(overrides: Partial<RegisterPayload> = {}): RegisterPayload {
   counter += 1;
-  return {
+  const user: RegisterPayload = {
     fullName: 'Ahmed Ali',
     username: `user_${String(counter)}_${String(Date.now() % 100000)}`,
     email: `user${String(counter)}.${String(Date.now() % 100000)}@mail.com`,
@@ -48,6 +49,8 @@ export function newUser(overrides: Partial<RegisterPayload> = {}): RegisterPaylo
     deviceOs: 'iOS 19.1',
     ...overrides,
   };
+  // Confirm whatever password the test chose, unless it sets the confirmation itself (FR-033).
+  return { ...user, passwordConfirmation: overrides.passwordConfirmation ?? user.password };
 }
 
 /** POST /api/v1/auth/register, returning the raw response. */

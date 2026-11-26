@@ -8,6 +8,7 @@ const CONSTRAINT_CODES: Readonly<Record<string, DetailCode>> = {
   isDefined: DetailCode.FIELD_REQUIRED,
   whitelistValidation: DetailCode.FIELD_NOT_ALLOWED,
   isStrongPassword: DetailCode.AUTH_PASSWORD_TOO_WEAK,
+  matchesField: DetailCode.FIELD_CONFIRMATION_MISMATCH,
   minLength: DetailCode.FIELD_TOO_SHORT,
   maxLength: DetailCode.FIELD_TOO_LONG,
 };
@@ -17,6 +18,7 @@ const PRIORITY: readonly DetailCode[] = [
   DetailCode.FIELD_REQUIRED,
   DetailCode.FIELD_NOT_ALLOWED,
   DetailCode.AUTH_PASSWORD_TOO_WEAK,
+  DetailCode.FIELD_CONFIRMATION_MISMATCH,
   DetailCode.FIELD_TOO_SHORT,
   DetailCode.FIELD_TOO_LONG,
   DetailCode.FIELD_INVALID_FORMAT,

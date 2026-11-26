@@ -31,8 +31,14 @@ describe('Forgot password (US8)', () => {
   const requestReset = (email: unknown) =>
     request(server()).post('/api/v1/auth/password-reset').send({ email });
 
-  const confirmReset = (token: unknown, newPassword: unknown) =>
-    request(server()).post('/api/v1/auth/password-reset/confirm').send({ token, newPassword });
+  const confirmReset = (
+    token: unknown,
+    newPassword: unknown,
+    newPasswordConfirmation: unknown = newPassword,
+  ) =>
+    request(server())
+      .post('/api/v1/auth/password-reset/confirm')
+      .send({ token, newPassword, newPasswordConfirmation });
 
   const resetMailsTo = (email: string) =>
     mailbox(app)
@@ -170,6 +176,29 @@ describe('Forgot password (US8)', () => {
       expectErrorEnvelope(weak, 400, 'VALIDATION_FAILED');
       expect((weak.body as { error: { details: unknown } }).error.details).toEqual([
         expect.objectContaining({ field: 'newPassword', code: 'AUTH_PASSWORD_TOO_WEAK' }),
+      ]);
+      expect((await confirmReset(token, 'n3wSecretPass')).status).toBe(200);
+    });
+
+    it('should reject a mismatched or missing confirmation, keeping the link usable (FR-033)', async () => {
+      const { token } = await userWithResetToken();
+
+      const mismatch = await confirmReset(token, 'n3wSecretPass', 'n3wSecretPasS');
+      // Sent without the field: a default parameter would fill `undefined` back in.
+      const missing = await request(server())
+        .post('/api/v1/auth/password-reset/confirm')
+        .send({ token, newPassword: 'n3wSecretPass' });
+
+      expectErrorEnvelope(mismatch, 400, 'VALIDATION_FAILED');
+      expect((mismatch.body as { error: { details: unknown } }).error.details).toEqual([
+        expect.objectContaining({
+          field: 'newPasswordConfirmation',
+          code: 'FIELD_CONFIRMATION_MISMATCH',
+        }),
+      ]);
+      expectErrorEnvelope(missing, 400, 'VALIDATION_FAILED');
+      expect((missing.body as { error: { details: unknown } }).error.details).toEqual([
+        expect.objectContaining({ field: 'newPasswordConfirmation', code: 'FIELD_REQUIRED' }),
       ]);
       expect((await confirmReset(token, 'n3wSecretPass')).status).toBe(200);
     });

@@ -15,7 +15,11 @@ describe('PasswordResetController', () => {
     resets.confirm.mockResolvedValue(undefined);
 
     await expect(
-      controller.confirmReset({ token: 't', newPassword: 'n3wSecretPass' }),
+      controller.confirmReset({
+        token: 't',
+        newPassword: 'n3wSecretPass',
+        newPasswordConfirmation: 'n3wSecretPass',
+      }),
     ).resolves.toBeNull();
     expect(resets.confirm).toHaveBeenCalledWith('t', 'n3wSecretPass');
   });

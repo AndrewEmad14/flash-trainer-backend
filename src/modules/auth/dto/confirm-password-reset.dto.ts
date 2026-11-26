@@ -4,6 +4,7 @@ import {
   IsStrongPassword,
   PASSWORD_RULE_MESSAGE,
 } from '../../../common/validators/is-strong-password.validator';
+import { MatchesField } from '../../../common/validators/matches-field.validator';
 
 /** Body of `POST /auth/password-reset/confirm`. */
 export class ConfirmPasswordResetDto {
@@ -29,4 +30,15 @@ export class ConfirmPasswordResetDto {
   @IsNotEmpty()
   @IsStrongPassword()
   newPassword: string;
+
+  @ApiProperty({
+    description:
+      'The new password typed again. It must match `newPassword` exactly; otherwise `FIELD_CONFIRMATION_MISMATCH` (FR-033).',
+    example: 'n3wSecretPass',
+    format: 'password',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MatchesField('newPassword')
+  newPasswordConfirmation: string;
 }
