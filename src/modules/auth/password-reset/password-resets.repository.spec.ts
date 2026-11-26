@@ -47,4 +47,14 @@ describe('PasswordResetsRepository', () => {
       data: { usedAt: expect.any(Date) },
     });
   });
+
+  it('should delete reset requests created before the cutoff', async () => {
+    const cutoff = new Date('2026-11-25T03:00:00Z');
+    passwordReset.deleteMany.mockResolvedValue({ count: 2 });
+
+    await expect(repository.deleteCreatedBefore(cutoff)).resolves.toBe(2);
+    expect(passwordReset.deleteMany).toHaveBeenCalledWith({
+      where: { createdAt: { lt: cutoff } },
+    });
+  });
 });

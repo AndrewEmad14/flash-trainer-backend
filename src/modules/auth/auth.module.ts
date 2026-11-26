@@ -5,6 +5,7 @@ import { AccountController } from './account/account.controller';
 import { AuthController } from './auth.controller';
 import { AppConfigService } from '../../config/app-config.service';
 import { AuthService } from './auth.service';
+import { AuthCleanupTask } from './cleanup/auth-cleanup.task';
 import { DnsResolver } from './email-domain/dns-resolver';
 import { EMAIL_DNS_CHECK_ENABLED, EmailDomainService } from './email-domain/email-domain.service';
 import { EmailDispatchRepository } from './email-dispatch/email-dispatch.repository';
@@ -48,6 +49,7 @@ import { TokenService } from './tokens/token.service';
     DnsResolver,
     PasswordResetsRepository,
     PasswordResetService,
+    AuthCleanupTask,
     EmailDomainService,
     {
       provide: EMAIL_DNS_CHECK_ENABLED,

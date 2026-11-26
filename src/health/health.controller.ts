@@ -31,7 +31,8 @@ export class HealthController {
    */
   @Get()
   @Public()
-  @HealthCheck()
+  // Terminus' own Swagger schemas are undocumented; ours (below) describe the real envelope.
+  @HealthCheck({ swaggerDocumentation: false })
   @ApiOperation({
     summary: 'Check service health',
     description:

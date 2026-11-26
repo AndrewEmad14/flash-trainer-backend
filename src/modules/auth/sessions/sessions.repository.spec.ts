@@ -128,4 +128,17 @@ describe('SessionsRepository', () => {
       data: { fcmToken: 'fcm' },
     });
   });
+
+  it('should delete sessions that expired or were revoked before the cutoff', async () => {
+    const deleteMany = jest.fn().mockResolvedValue({ count: 4 });
+    const repo = new SessionsRepository({
+      authSession: { deleteMany },
+    } as unknown as PrismaService);
+    const cutoff = new Date('2026-10-27T03:00:00Z');
+
+    await expect(repo.deleteStale(cutoff)).resolves.toBe(4);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { OR: [{ expiresAt: { lt: cutoff } }, { revokedAt: { lt: cutoff } }] },
+    });
+  });
 });

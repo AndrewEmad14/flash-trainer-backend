@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { LoggerModule } from './common/logging/logger.module';
@@ -26,6 +27,8 @@ export const DEFAULT_THROTTLE = { name: 'default', ttl: 60_000, limit: 100 } as 
     ThrottlerModule.forRoot({ throttlers: [DEFAULT_THROTTLE] }),
     // Secrets are passed per call (access vs email-verification tokens use different secrets).
     JwtModule.register({ global: true }),
+    // Scheduled jobs, e.g. the daily auth cleanup (research R16).
+    ScheduleModule.forRoot(),
     HealthModule,
     MailModule,
     UsersModule,

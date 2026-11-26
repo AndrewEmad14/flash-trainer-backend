@@ -70,4 +70,17 @@ describe('LoginAttemptsRepository', () => {
 
     expect(loginAttempt.deleteMany).toHaveBeenCalledWith({ where: { throttleKey: 'ident:ghost' } });
   });
+
+  it('should delete stale counters but never an active lock', async () => {
+    loginAttempt.deleteMany.mockResolvedValue({ count: 3 });
+    const windowCutoff = new Date('2026-11-25T09:45:00Z');
+
+    await expect(repository.deleteStale(windowCutoff, now)).resolves.toBe(3);
+    expect(loginAttempt.deleteMany).toHaveBeenCalledWith({
+      where: {
+        windowStartedAt: { lt: windowCutoff },
+        OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }],
+      },
+    });
+  });
 });

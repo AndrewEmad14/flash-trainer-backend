@@ -15,6 +15,14 @@ import { PaginatedResult } from '../http/paginated-result';
 export class ResponseInterceptor implements NestInterceptor {
   constructor(private readonly reflector: Reflector) {}
 
+  /**
+   * Wraps the handler's return value in the success envelope, unless the handler is marked
+   * `@SkipEnvelope()` or the context isn't HTTP.
+   *
+   * @param context - The current execution context.
+   * @param next - The route handler.
+   * @returns The (possibly wrapped) response stream.
+   */
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const skip = this.reflector.getAllAndOverride<boolean | undefined>(SKIP_ENVELOPE_KEY, [
       context.getHandler(),
