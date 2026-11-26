@@ -39,7 +39,12 @@ const tokens = {
 };
 
 describe('AuthService', () => {
-  const users = { createUser: jest.fn(), findByIdentifier: jest.fn() };
+  const users = {
+    createUser: jest.fn(),
+    findByIdentifier: jest.fn(),
+    findById: jest.fn(),
+    updatePasswordHash: jest.fn(),
+  };
   const passwords = { hash: jest.fn(), verify: jest.fn(), verifyDummy: jest.fn() };
   const loginThrottle = {
     keyFor: jest.fn(),
@@ -47,7 +52,7 @@ describe('AuthService', () => {
     registerFailure: jest.fn(),
     reset: jest.fn(),
   };
-  const sessions = { createSession: jest.fn() };
+  const sessions = { createSession: jest.fn(), revokeAll: jest.fn() };
   const emailDomain = { assertDeliverable: jest.fn() };
   const emailVerification = { sendVerificationEmail: jest.fn() };
   const service = new AuthService(
@@ -186,6 +191,58 @@ describe('AuthService', () => {
       });
       expect(passwords.verify).not.toHaveBeenCalled();
       expect(loginThrottle.registerFailure).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('changePassword', () => {
+    const dto = {
+      currentPassword: 's3cretPass',
+      newPassword: 'n3wSecretPass',
+      newPasswordConfirmation: 'n3wSecretPass',
+    };
+
+    it('should revoke the other sessions first, then store the new password', async () => {
+      users.findById.mockResolvedValue(storedUser);
+      passwords.verify.mockResolvedValue(true);
+      passwords.hash.mockResolvedValue('new-hash');
+      const order: string[] = [];
+      sessions.revokeAll.mockImplementation(() => {
+        order.push('revoke');
+        return Promise.resolve(1);
+      });
+      users.updatePasswordHash.mockImplementation(() => {
+        order.push('password');
+        return Promise.resolve();
+      });
+
+      await service.changePassword('u1', 'session-1', dto);
+
+      expect(passwords.verify).toHaveBeenCalledWith('argon-hash', 's3cretPass');
+      expect(sessions.revokeAll).toHaveBeenCalledWith('u1', 'session-1');
+      expect(users.updatePasswordHash).toHaveBeenCalledWith('u1', 'new-hash');
+      expect(order).toEqual(['revoke', 'password']);
+    });
+
+    it.each([
+      ['a wrong current password', storedUser, false],
+      ['an account without a password', { ...storedUser, passwordHash: null }, true],
+    ])('should refuse %s with 403 and change nothing', async (_case, user, verifies) => {
+      users.findById.mockResolvedValue(user);
+      passwords.verify.mockResolvedValue(verifies);
+
+      await expect(service.changePassword('u1', 's1', dto)).rejects.toMatchObject({
+        code: ErrorCode.AUTH_CURRENT_PASSWORD_INCORRECT,
+      });
+      expect(sessions.revokeAll).not.toHaveBeenCalled();
+      expect(users.updatePasswordHash).not.toHaveBeenCalled();
+    });
+
+    it('should throw AUTH_TOKEN_INVALID when the account no longer exists', async () => {
+      users.findById.mockResolvedValue(null);
+
+      await expect(service.changePassword('gone', 's1', dto)).rejects.toMatchObject({
+        code: ErrorCode.AUTH_TOKEN_INVALID,
+      });
     });
   });
 });

@@ -4,6 +4,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import { toUserResponse } from '../users/user.mapper';
 import { UsersService } from '../users/users.service';
 import type { AuthResultDto } from './dto/auth-result.dto';
+import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
 import { EmailDomainService } from './email-domain/email-domain.service';
@@ -81,5 +82,29 @@ export class AuthService {
       deviceOs: dto.deviceOs,
     });
     return { user: toUserResponse(user), tokens };
+  }
+
+  /**
+   * Changes the password of a signed-in user (US9, FR-027). This device stays signed in, and
+   * every other device is signed out. Same fail-safe order as a password reset: other
+   * sessions are revoked first, and the new password is stored last.
+   *
+   * @param userId - The signed-in user.
+   * @param sessionId - The session making the request, which stays signed in.
+   * @throws AppException AUTH_CURRENT_PASSWORD_INCORRECT (403, research R15) when the current
+   *   password is wrong, or the account has no password.
+   * @throws AppException AUTH_TOKEN_INVALID when the account no longer exists.
+   */
+  async changePassword(userId: string, sessionId: string, dto: ChangePasswordDto): Promise<void> {
+    const user = await this.users.findById(userId);
+    if (!user) throw new AppException(ErrorCode.AUTH_TOKEN_INVALID);
+    const isCurrent = user.passwordHash
+      ? await this.passwords.verify(user.passwordHash, dto.currentPassword)
+      : false;
+    if (!isCurrent) throw new AppException(ErrorCode.AUTH_CURRENT_PASSWORD_INCORRECT);
+
+    const passwordHash = await this.passwords.hash(dto.newPassword);
+    await this.sessions.revokeAll(userId, sessionId);
+    await this.users.updatePasswordHash(userId, passwordHash);
   }
 }

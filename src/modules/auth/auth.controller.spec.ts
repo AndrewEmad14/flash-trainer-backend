@@ -6,7 +6,7 @@ import type { AuthService } from './auth.service';
 import type { SessionsService } from './sessions/sessions.service';
 
 describe('AuthController', () => {
-  const auth = { register: jest.fn(), login: jest.fn() };
+  const auth = { register: jest.fn(), login: jest.fn(), changePassword: jest.fn() };
   const sessions = {
     refresh: jest.fn(),
     logoutByRefreshToken: jest.fn(),
@@ -87,6 +87,25 @@ describe('AuthController', () => {
       await expect(controller.logoutAll({ userId: 'u1', sessionId: 's1' })).resolves.toBeNull();
       expect(sessions.revokeAll).toHaveBeenCalledWith('u1');
       const handler = AuthController.prototype.logoutAll;
+      expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBeUndefined();
+      expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(HttpStatus.OK);
+    });
+  });
+
+  describe('changePassword', () => {
+    it('should change the password for the signed-in session, be protected and return null', async () => {
+      auth.changePassword.mockResolvedValue(undefined);
+      const dto = {
+        currentPassword: 's3cretPass',
+        newPassword: 'n3wSecretPass',
+        newPasswordConfirmation: 'n3wSecretPass',
+      };
+
+      await expect(
+        controller.changePassword({ userId: 'u1', sessionId: 's1' }, dto),
+      ).resolves.toBeNull();
+      expect(auth.changePassword).toHaveBeenCalledWith('u1', 's1', dto);
+      const handler = AuthController.prototype.changePassword;
       expect(Reflect.getMetadata(IS_PUBLIC_KEY, handler)).toBeUndefined();
       expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(HttpStatus.OK);
     });
