@@ -25,6 +25,7 @@ describe('UsersRepository', () => {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     updateMany: jest.fn(),
+    update: jest.fn(),
   };
   const repository = new UsersRepository({ user } as unknown as PrismaService);
 
@@ -127,6 +128,17 @@ describe('UsersRepository', () => {
       expect(user.updateMany).toHaveBeenCalledWith({
         where: { id: 'u1', emailVerifiedAt: null },
         data: { emailVerifiedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('updatePasswordHash', () => {
+    it('should replace the password hash', async () => {
+      await repository.updatePasswordHash('u1', 'new-hash');
+
+      expect(user.update).toHaveBeenCalledWith({
+        where: { id: 'u1' },
+        data: { passwordHash: 'new-hash' },
       });
     });
   });

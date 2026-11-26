@@ -112,4 +112,9 @@ export class UsersRepository {
     });
     return count === 1;
   }
+
+  /** Replaces the stored password hash (data-model.md User.passwordHash). */
+  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+    await this.prisma.user.update({ where: { id }, data: { passwordHash } });
+  }
 }

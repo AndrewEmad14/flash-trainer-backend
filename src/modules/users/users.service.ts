@@ -75,4 +75,18 @@ export class UsersService {
   markEmailVerified(userId: string): Promise<boolean> {
     return this.users.markEmailVerified(userId);
   }
+
+  /**
+   * Looks a user up by email, ignoring case and surrounding spaces (data-model.md User.email).
+   *
+   * @returns The user, or `null`.
+   */
+  findByEmail(email: string): Promise<User | null> {
+    return this.users.findByEmail(String(normalizeEmail(email)));
+  }
+
+  /** Stores a new (already hashed) password (data-model.md User.passwordHash). */
+  updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    return this.users.updatePasswordHash(userId, passwordHash);
+  }
 }
