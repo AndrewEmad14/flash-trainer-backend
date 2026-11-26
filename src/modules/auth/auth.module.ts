@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MailModule } from '../mail/mail.module';
 import { UsersModule } from '../users/users.module';
+import { AccountController } from './account/account.controller';
 import { AuthController } from './auth.controller';
 import { AppConfigService } from '../../config/app-config.service';
 import { AuthService } from './auth.service';
@@ -31,6 +32,7 @@ import { TokenService } from './tokens/token.service';
     EmailVerificationController,
     LinksController,
     PasswordResetController,
+    AccountController,
   ],
   providers: [
     AuthService,

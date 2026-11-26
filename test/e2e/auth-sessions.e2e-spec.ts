@@ -181,4 +181,79 @@ describe('GET/DELETE /api/v1/auth/sessions (US6)', () => {
       'AUTH_TOKEN_MISSING',
     );
   });
+
+  describe('PUT /auth/sessions/current/push-token (US10)', () => {
+    const setPushToken = (accessToken: string | undefined, pushToken: unknown) => {
+      const req = request(app.getHttpServer()).put('/api/v1/auth/sessions/current/push-token');
+      return (accessToken ? req.set('Authorization', `Bearer ${accessToken}`) : req).send({
+        pushToken,
+      });
+    };
+
+    const fcmOf = async (tokens: AuthTokens): Promise<string | null> =>
+      (
+        await prisma.authSession.findUniqueOrThrow({
+          where: { refreshTokenHash: sha256Hex(tokens.refreshToken) },
+        })
+      ).fcmToken;
+
+    it("should store the token on this device's session, and replace it on a second call", async () => {
+      const { a, b } = await twoDevices();
+
+      expect(expectSuccessEnvelope(await setPushToken(a.accessToken, 'fcm-token-1'))).toBeNull();
+      expect(await fcmOf(a)).toBe('fcm-token-1');
+      expect(await fcmOf(b)).toBeNull();
+
+      await setPushToken(a.accessToken, 'fcm-token-2');
+      expect(await fcmOf(a)).toBe('fcm-token-2');
+    });
+
+    it('should move a token that another session already holds (same phone, new sign-in)', async () => {
+      const { a, b } = await twoDevices();
+      await setPushToken(a.accessToken, 'shared-fcm-token');
+
+      await setPushToken(b.accessToken, 'shared-fcm-token');
+
+      expect(await fcmOf(a)).toBeNull();
+      expect(await fcmOf(b)).toBe('shared-fcm-token');
+    });
+
+    it('should drop the token when the device signs out', async () => {
+      const { a } = await twoDevices();
+      await setPushToken(a.accessToken, 'fcm-token-1');
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .send({ refreshToken: a.refreshToken });
+
+      expect(await fcmOf(a)).toBeNull();
+    });
+
+    it('should refuse with AUTH_SESSION_INVALID once this session was signed out remotely', async () => {
+      const { a, b } = await twoDevices();
+      await revoke(b.accessToken, await sessionIdOf(a));
+
+      expectErrorEnvelope(
+        await setPushToken(a.accessToken, 'fcm-token-1'),
+        401,
+        'AUTH_SESSION_INVALID',
+      );
+      expect(await fcmOf(a)).toBeNull();
+    });
+
+    it('should validate the token', async () => {
+      const { a } = await twoDevices();
+
+      expectErrorEnvelope(await setPushToken(a.accessToken, ''), 400, 'VALIDATION_FAILED');
+      expectErrorEnvelope(
+        await setPushToken(a.accessToken, 'x'.repeat(4097)),
+        400,
+        'VALIDATION_FAILED',
+      );
+    });
+
+    it('should require an access token', async () => {
+      expectErrorEnvelope(await setPushToken(undefined, 'fcm'), 401, 'AUTH_TOKEN_MISSING');
+    });
+  });
 });

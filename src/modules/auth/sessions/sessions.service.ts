@@ -121,6 +121,18 @@ export class SessionsService {
     if (!session) throw new AppException(ErrorCode.SESSION_NOT_FOUND);
     await this.sessions.revoke(session.id);
   }
+
+  /**
+   * Saves this device's push token on its session (US10, FR-018).
+   *
+   * @throws AppException AUTH_SESSION_INVALID when the session was signed out or expired.
+   *   Its access token may still be valid, but it must not reattach for notifications.
+   */
+  async updatePushToken(sessionId: string, pushToken: string): Promise<void> {
+    if (!(await this.sessions.setPushToken(sessionId, pushToken))) {
+      throw new AppException(ErrorCode.AUTH_SESSION_INVALID);
+    }
+  }
 }
 
 function toAuthTokens(access: SignedToken, refresh: IssuedRefreshToken): AuthTokensDto {

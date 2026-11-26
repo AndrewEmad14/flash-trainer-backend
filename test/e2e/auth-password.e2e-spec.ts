@@ -228,3 +228,121 @@ describe('Forgot password (US8)', () => {
     });
   });
 });
+
+describe('Change password (US9)', () => {
+  let app: NestExpressApplication;
+  const server = () => app.getHttpServer();
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(app);
+    resetThrottling(app);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const changePassword = (accessToken: string | undefined, body: Record<string, unknown>) => {
+    const req = request(server()).put('/api/v1/auth/password');
+    return (accessToken ? req.set('Authorization', `Bearer ${accessToken}`) : req).send(body);
+  };
+
+  /** Device A (registration) and device B (a second sign-in) of the same user. */
+  const twoDevices = async () => {
+    const a = await registerAndLogin(app);
+    const b = await login(app, { identifier: a.payload.email, password: a.payload.password });
+    return {
+      a,
+      bRefresh: (b.body as { data: { tokens: { refreshToken: string } } }).data.tokens.refreshToken,
+    };
+  };
+
+  const valid = (currentPassword: string) => ({
+    currentPassword,
+    newPassword: 'n3wSecretPass',
+    newPasswordConfirmation: 'n3wSecretPass',
+  });
+
+  it('should change the password, keep this device signed in and sign out the others', async () => {
+    const { a, bRefresh } = await twoDevices();
+
+    const response = await changePassword(a.tokens.accessToken, valid(a.payload.password));
+
+    expect(expectSuccessEnvelope(response)).toBeNull();
+    expect((await refresh(app, a.tokens.refreshToken)).status).toBe(200);
+    expectErrorEnvelope(await refresh(app, bRefresh), 401, 'AUTH_SESSION_INVALID');
+    expectErrorEnvelope(
+      await login(app, { identifier: a.payload.email, password: a.payload.password }),
+      401,
+      'AUTH_INVALID_CREDENTIALS',
+    );
+    expect(
+      (await login(app, { identifier: a.payload.email, password: 'n3wSecretPass' })).status,
+    ).toBe(200);
+  });
+
+  it('should return 403 AUTH_CURRENT_PASSWORD_INCORRECT for a wrong current password, changing nothing', async () => {
+    const { a, bRefresh } = await twoDevices();
+
+    const response = await changePassword(a.tokens.accessToken, valid('wrongPass1'));
+
+    expectErrorEnvelope(response, 403, 'AUTH_CURRENT_PASSWORD_INCORRECT');
+    expect((await refresh(app, bRefresh)).status).toBe(200);
+    expect(
+      (await login(app, { identifier: a.payload.email, password: a.payload.password })).status,
+    ).toBe(200);
+  });
+
+  it('should reject a weak new password with AUTH_PASSWORD_TOO_WEAK', async () => {
+    const { a } = await twoDevices();
+
+    const response = await changePassword(a.tokens.accessToken, {
+      currentPassword: a.payload.password,
+      newPassword: 'abcdefgh',
+      newPasswordConfirmation: 'abcdefgh',
+    });
+
+    expectErrorEnvelope(response, 400, 'VALIDATION_FAILED');
+    expect((response.body as { error: { details: unknown } }).error.details).toEqual([
+      expect.objectContaining({ field: 'newPassword', code: 'AUTH_PASSWORD_TOO_WEAK' }),
+    ]);
+  });
+
+  it('should reject a mismatched confirmation with FIELD_CONFIRMATION_MISMATCH (FR-033)', async () => {
+    const { a } = await twoDevices();
+
+    const response = await changePassword(a.tokens.accessToken, {
+      ...valid(a.payload.password),
+      newPasswordConfirmation: 'n3wSecretPasS',
+    });
+
+    expectErrorEnvelope(response, 400, 'VALIDATION_FAILED');
+    expect((response.body as { error: { details: unknown } }).error.details).toEqual([
+      expect.objectContaining({
+        field: 'newPasswordConfirmation',
+        code: 'FIELD_CONFIRMATION_MISMATCH',
+      }),
+    ]);
+  });
+
+  it('should require every field', async () => {
+    const { a } = await twoDevices();
+
+    const response = await changePassword(a.tokens.accessToken, {});
+
+    expectErrorEnvelope(response, 400, 'VALIDATION_FAILED');
+    expect(
+      (response.body as { error: { details: { field: string }[] } }).error.details
+        .map((d) => d.field)
+        .sort(),
+    ).toEqual(['currentPassword', 'newPassword', 'newPasswordConfirmation']);
+  });
+
+  it('should require an access token', async () => {
+    expectErrorEnvelope(await changePassword(undefined, valid('x')), 401, 'AUTH_TOKEN_MISSING');
+  });
+});

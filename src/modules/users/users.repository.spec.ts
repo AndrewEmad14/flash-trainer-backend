@@ -26,6 +26,7 @@ describe('UsersRepository', () => {
     findMany: jest.fn(),
     updateMany: jest.fn(),
     update: jest.fn(),
+    deleteMany: jest.fn(),
   };
   const repository = new UsersRepository({ user } as unknown as PrismaService);
 
@@ -140,6 +141,16 @@ describe('UsersRepository', () => {
         where: { id: 'u1' },
         data: { passwordHash: 'new-hash' },
       });
+    });
+  });
+
+  describe('deleteById', () => {
+    it('should delete the user and report whether it existed', async () => {
+      user.deleteMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+      await expect(repository.deleteById('u1')).resolves.toBe(true);
+      await expect(repository.deleteById('u1')).resolves.toBe(false);
+      expect(user.deleteMany).toHaveBeenCalledWith({ where: { id: 'u1' } });
     });
   });
 });

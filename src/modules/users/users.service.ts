@@ -89,4 +89,17 @@ export class UsersService {
   updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
     return this.users.updatePasswordHash(userId, passwordHash);
   }
+
+  /**
+   * Permanently deletes the account and, through the database cascade, its sessions, reset
+   * requests and email log (US11, FR-028). After this, the email, username and phone are
+   * free to register again (FR-029).
+   *
+   * @throws AppException AUTH_TOKEN_INVALID when the account no longer exists.
+   */
+  async deleteUser(userId: string): Promise<void> {
+    if (!(await this.users.deleteById(userId))) {
+      throw new AppException(ErrorCode.AUTH_TOKEN_INVALID);
+    }
+  }
 }

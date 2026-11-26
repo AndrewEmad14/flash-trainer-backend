@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiEnvelopeResponse } from '../../common/decorators/api-envelope-response.decorator';
 import { ApiErrorResponses } from '../../common/decorators/api-error-responses.decorator';
@@ -9,6 +9,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import type { AuthenticatedUser } from '../../common/http/authenticated-request';
 import { AuthService } from './auth.service';
 import { AuthTokensDto } from './dto/auth-tokens.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { AuthResultDto } from './dto/auth-result.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -166,6 +167,41 @@ export class AuthController {
   )
   async logoutAll(@CurrentUser() user: AuthenticatedUser): Promise<null> {
     await this.sessions.revokeAll(user.userId);
+    return null;
+  }
+
+  /**
+   * PUT /api/v1/auth/password (US9).
+   *
+   * @throws AppException VALIDATION_FAILED, AUTH_CURRENT_PASSWORD_INCORRECT, AUTH_TOKEN_*,
+   *   RATE_LIMIT_EXCEEDED.
+   */
+  @Put('password')
+  @ApiBearerAuth()
+  @AuthThrottle()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Change my password',
+    description: `Changes the signed-in user's password. **This device stays signed in** with its current tokens, and **every other device is signed out**.
+
+- A wrong \`currentPassword\` returns **403** \`AUTH_CURRENT_PASSWORD_INCORRECT\`, not 401, on purpose: the app treats 401 as "session gone", and a typo must not sign the user out. Show the error under the field.
+- \`newPassword\` must meet the password rules (\`AUTH_PASSWORD_TOO_WEAK\`), and \`newPasswordConfirmation\` must match it (\`FIELD_CONFIRMATION_MISMATCH\`).
+- Rate limited to 10 requests per minute per IP.`,
+  })
+  @ApiEnvelopeResponse(null, { description: 'Password changed; other devices signed out.' })
+  @ApiErrorResponses(
+    ErrorCode.VALIDATION_FAILED,
+    ErrorCode.AUTH_CURRENT_PASSWORD_INCORRECT,
+    ErrorCode.AUTH_TOKEN_MISSING,
+    ErrorCode.AUTH_TOKEN_INVALID,
+    ErrorCode.AUTH_TOKEN_EXPIRED,
+    ErrorCode.RATE_LIMIT_EXCEEDED,
+  )
+  async changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<null> {
+    await this.auth.changePassword(user.userId, user.sessionId, dto);
     return null;
   }
 }

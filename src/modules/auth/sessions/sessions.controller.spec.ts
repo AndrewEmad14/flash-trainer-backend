@@ -5,7 +5,11 @@ import { SessionsController } from './sessions.controller';
 import type { SessionsService } from './sessions.service';
 
 describe('SessionsController', () => {
-  const sessions = { listForUser: jest.fn(), revokeOwnSession: jest.fn() };
+  const sessions = {
+    listForUser: jest.fn(),
+    revokeOwnSession: jest.fn(),
+    updatePushToken: jest.fn(),
+  };
   const controller = new SessionsController(sessions as unknown as SessionsService);
   const user = { userId: 'u1', sessionId: 's1' };
 
@@ -24,6 +28,13 @@ describe('SessionsController', () => {
     expect(Reflect.getMetadata(HTTP_CODE_METADATA, SessionsController.prototype.revoke)).toBe(
       HttpStatus.OK,
     );
+  });
+
+  it("should save the push token on the requesting device's session", async () => {
+    sessions.updatePushToken.mockResolvedValue(undefined);
+
+    await expect(controller.updatePushToken(user, { pushToken: 'fcm' })).resolves.toBeNull();
+    expect(sessions.updatePushToken).toHaveBeenCalledWith('s1', 'fcm');
   });
 
   it('should be protected', () => {
