@@ -61,4 +61,18 @@ export class UsersService {
     if (!user) throw new AppException(ErrorCode.AUTH_TOKEN_INVALID);
     return toUserResponse(user);
   }
+
+  /** The user with this id, or `null` (internal use; controllers use {@link getMe}). */
+  findById(userId: string): Promise<User | null> {
+    return this.users.findById(userId);
+  }
+
+  /**
+   * Marks the email as verified (US7). Idempotent.
+   *
+   * @returns `true` if this call verified it, `false` if it already was.
+   */
+  markEmailVerified(userId: string): Promise<boolean> {
+    return this.users.markEmailVerified(userId);
+  }
 }

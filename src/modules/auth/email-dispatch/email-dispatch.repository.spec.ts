@@ -13,4 +13,22 @@ describe('EmailDispatchRepository', () => {
       data: { userId: 'u1', type: 'VERIFY_EMAIL' },
     });
   });
+
+  it('should fetch recent send times for the user and type, newest first', async () => {
+    const findMany = jest.fn().mockResolvedValue([{ createdAt: new Date('2026-11-25T09:59:00Z') }]);
+    const repository = new EmailDispatchRepository({
+      emailDispatch: { findMany },
+    } as unknown as PrismaService);
+    const since = new Date('2026-11-24T10:00:00Z');
+
+    await expect(
+      repository.recentSendTimes('u1', EmailDispatchType.VERIFY_EMAIL, since, 5),
+    ).resolves.toEqual([new Date('2026-11-25T09:59:00Z')]);
+    expect(findMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', type: 'VERIFY_EMAIL', createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: { createdAt: true },
+    });
+  });
 });

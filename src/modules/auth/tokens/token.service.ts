@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, TokenExpiredError } from '@nestjs/jwt';
+import { AppException } from '../../../common/errors/app.exception';
+import { ErrorCode } from '../../../common/errors/error-codes';
 import { generateOpaqueToken, sha256Hex } from '../../../common/utils/hash.util';
 import { AppConfigService } from '../../../config/app-config.service';
 
@@ -12,6 +14,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface SignedToken {
   token: string;
   expiresAt: Date;
+}
+
+export interface EmailVerificationClaims {
+  userId: string;
+  email: string;
 }
 
 export interface IssuedRefreshToken extends SignedToken {
@@ -75,5 +82,35 @@ export class TokenService {
       },
       { secret: this.config.jwt.emailSecret, algorithm: 'HS256' },
     );
+  }
+
+  /**
+   * Checks an email-verification token: signature (email secret), expiry and purpose.
+   * The caller still has to check that the user exists and the email is unchanged.
+   *
+   * @returns The user id and the email the link was issued for.
+   * @throws AppException AUTH_LINK_EXPIRED when older than 24 hours.
+   * @throws AppException AUTH_LINK_INVALID for a bad signature, garbage or the wrong purpose.
+   */
+  async verifyEmailVerificationToken(token: string): Promise<EmailVerificationClaims> {
+    let payload: Record<string, unknown>;
+    try {
+      payload = await this.jwt.verifyAsync<Record<string, unknown>>(token, {
+        secret: this.config.jwt.emailSecret,
+        algorithms: ['HS256'],
+      });
+    } catch (error) {
+      if (error instanceof TokenExpiredError) throw new AppException(ErrorCode.AUTH_LINK_EXPIRED);
+      throw new AppException(ErrorCode.AUTH_LINK_INVALID);
+    }
+    const { sub, email, purpose } = payload;
+    if (
+      purpose !== EMAIL_VERIFICATION_PURPOSE ||
+      typeof sub !== 'string' ||
+      typeof email !== 'string'
+    ) {
+      throw new AppException(ErrorCode.AUTH_LINK_INVALID);
+    }
+    return { userId: sub, email };
   }
 }
