@@ -74,4 +74,20 @@ export class LoginAttemptsRepository {
   async delete(throttleKey: string): Promise<void> {
     await this.prisma.loginAttempt.deleteMany({ where: { throttleKey } });
   }
+
+  /**
+   * Cleanup (R16): deletes counters whose window started before `windowCutoff` and that hold
+   * no lock still in force at `now`. An active lock is never removed.
+   *
+   * @returns How many rows were deleted.
+   */
+  async deleteStale(windowCutoff: Date, now: Date): Promise<number> {
+    const { count } = await this.prisma.loginAttempt.deleteMany({
+      where: {
+        windowStartedAt: { lt: windowCutoff },
+        OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }],
+      },
+    });
+    return count;
+  }
 }

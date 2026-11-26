@@ -123,4 +123,16 @@ export class SessionsRepository {
     ]);
     return assigned.count === 1;
   }
+
+  /**
+   * Cleanup (R16): deletes sessions that expired, or were revoked, before `cutoff`.
+   *
+   * @returns How many rows were deleted.
+   */
+  async deleteStale(cutoff: Date): Promise<number> {
+    const { count } = await this.prisma.authSession.deleteMany({
+      where: { OR: [{ expiresAt: { lt: cutoff } }, { revokedAt: { lt: cutoff } }] },
+    });
+    return count;
+  }
 }

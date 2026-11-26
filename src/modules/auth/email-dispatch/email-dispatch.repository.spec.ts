@@ -31,4 +31,15 @@ describe('EmailDispatchRepository', () => {
       select: { createdAt: true },
     });
   });
+
+  it('should delete dispatch rows created before the cutoff', async () => {
+    const deleteMany = jest.fn().mockResolvedValue({ count: 7 });
+    const repository = new EmailDispatchRepository({
+      emailDispatch: { deleteMany },
+    } as unknown as PrismaService);
+    const cutoff = new Date('2026-11-25T03:00:00Z');
+
+    await expect(repository.deleteCreatedBefore(cutoff)).resolves.toBe(7);
+    expect(deleteMany).toHaveBeenCalledWith({ where: { createdAt: { lt: cutoff } } });
+  });
 });

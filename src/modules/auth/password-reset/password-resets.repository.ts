@@ -35,4 +35,16 @@ export class PasswordResetsRepository {
     });
     return count === 1;
   }
+
+  /**
+   * Cleanup (R16): deletes reset requests created before `cutoff` (used or expired by then).
+   *
+   * @returns How many rows were deleted.
+   */
+  async deleteCreatedBefore(cutoff: Date): Promise<number> {
+    const { count } = await this.prisma.passwordReset.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    return count;
+  }
 }

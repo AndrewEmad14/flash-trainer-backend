@@ -30,4 +30,17 @@ export class EmailDispatchRepository {
     });
     return rows.map((row) => row.createdAt);
   }
+
+  /**
+   * Cleanup (R16): deletes dispatch log rows older than `cutoff`, which is past the longest
+   * rate-limit window.
+   *
+   * @returns How many rows were deleted.
+   */
+  async deleteCreatedBefore(cutoff: Date): Promise<number> {
+    const { count } = await this.prisma.emailDispatch.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    return count;
+  }
 }
