@@ -36,6 +36,20 @@ describe('validationExceptionFactory', () => {
     ]);
   });
 
+  it('should map a mismatched confirmation to FIELD_CONFIRMATION_MISMATCH', () => {
+    const exception = validationExceptionFactory([
+      error('passwordConfirmation', { matchesField: 'must match password' }),
+    ]);
+
+    expect(exception.details).toEqual([
+      {
+        field: 'passwordConfirmation',
+        code: DetailCode.FIELD_CONFIRMATION_MISMATCH,
+        message: 'must match password',
+      },
+    ]);
+  });
+
   it('should prefer FIELD_REQUIRED when a field breaks several rules', () => {
     const exception = validationExceptionFactory([
       error('email', { isEmail: 'bad format', isNotEmpty: 'email should not be empty' }),

@@ -14,6 +14,7 @@ import {
   IsStrongPassword,
   PASSWORD_RULE_MESSAGE,
 } from '../../../common/validators/is-strong-password.validator';
+import { MatchesField } from '../../../common/validators/matches-field.validator';
 
 export const USERNAME_PATTERN = /^[A-Za-z0-9_.]+$/;
 export const E164_PATTERN = /^\+[1-9]\d{6,14}$/;
@@ -76,6 +77,17 @@ export class RegisterDto {
   @IsNotEmpty()
   @IsStrongPassword()
   password: string;
+
+  @ApiProperty({
+    description:
+      'The same password typed again. It must match `password` exactly; otherwise `FIELD_CONFIRMATION_MISMATCH` (FR-033).',
+    example: 's3cretPass',
+    format: 'password',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MatchesField('password')
+  passwordConfirmation: string;
 
   @ApiPropertyOptional({
     description:

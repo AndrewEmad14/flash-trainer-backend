@@ -61,4 +61,32 @@ export class UsersService {
     if (!user) throw new AppException(ErrorCode.AUTH_TOKEN_INVALID);
     return toUserResponse(user);
   }
+
+  /** The user with this id, or `null` (internal use; controllers use {@link getMe}). */
+  findById(userId: string): Promise<User | null> {
+    return this.users.findById(userId);
+  }
+
+  /**
+   * Marks the email as verified (US7). Idempotent.
+   *
+   * @returns `true` if this call verified it, `false` if it already was.
+   */
+  markEmailVerified(userId: string): Promise<boolean> {
+    return this.users.markEmailVerified(userId);
+  }
+
+  /**
+   * Looks a user up by email, ignoring case and surrounding spaces (data-model.md User.email).
+   *
+   * @returns The user, or `null`.
+   */
+  findByEmail(email: string): Promise<User | null> {
+    return this.users.findByEmail(String(normalizeEmail(email)));
+  }
+
+  /** Stores a new (already hashed) password (data-model.md User.passwordHash). */
+  updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    return this.users.updatePasswordHash(userId, passwordHash);
+  }
 }

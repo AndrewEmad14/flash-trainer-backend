@@ -98,4 +98,23 @@ export class UsersRepository {
     if (lookup.phone && rows.some((row) => row.phone === lookup.phone)) conflicts.push('phone');
     return conflicts;
   }
+
+  /**
+   * Sets `emailVerifiedAt` if it isn't set yet (data-model.md User.emailVerifiedAt).
+   * Idempotent and race-safe: a second call changes nothing.
+   *
+   * @returns `true` if this call verified the email.
+   */
+  async markEmailVerified(id: string): Promise<boolean> {
+    const { count } = await this.prisma.user.updateMany({
+      where: { id, emailVerifiedAt: null },
+      data: { emailVerifiedAt: new Date() },
+    });
+    return count === 1;
+  }
+
+  /** Replaces the stored password hash (data-model.md User.passwordHash). */
+  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+    await this.prisma.user.update({ where: { id }, data: { passwordHash } });
+  }
 }

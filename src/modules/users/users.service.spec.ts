@@ -18,6 +18,8 @@ describe('UsersService', () => {
     findByEmail: jest.fn(),
     findByUsername: jest.fn(),
     findById: jest.fn(),
+    markEmailVerified: jest.fn(),
+    updatePasswordHash: jest.fn(),
   };
   const service = new UsersService(repository as unknown as UsersRepository);
 
@@ -102,6 +104,33 @@ describe('UsersService', () => {
       await expect(service.getMe('gone')).rejects.toMatchObject({
         code: ErrorCode.AUTH_TOKEN_INVALID,
       });
+    });
+  });
+
+  describe('findById / markEmailVerified', () => {
+    it('should delegate to the repository', async () => {
+      repository.findById.mockResolvedValue(null);
+      repository.markEmailVerified.mockResolvedValue(true);
+
+      await expect(service.findById('u1')).resolves.toBeNull();
+      await expect(service.markEmailVerified('u1')).resolves.toBe(true);
+      expect(repository.markEmailVerified).toHaveBeenCalledWith('u1');
+    });
+  });
+
+  describe('findByEmail / updatePasswordHash', () => {
+    it('should normalise the email before looking it up', async () => {
+      repository.findByEmail.mockResolvedValue(null);
+
+      await service.findByEmail(' Ahmed@Mail.COM ');
+
+      expect(repository.findByEmail).toHaveBeenCalledWith('ahmed@mail.com');
+    });
+
+    it('should delegate the password hash update', async () => {
+      await service.updatePasswordHash('u1', 'h');
+
+      expect(repository.updatePasswordHash).toHaveBeenCalledWith('u1', 'h');
     });
   });
 });

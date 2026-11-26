@@ -26,6 +26,7 @@ describe('AuthController', () => {
         username: 'abc',
         email: 'a@b.co',
         password: 's3cretPass',
+        passwordConfirmation: 's3cretPass',
       };
 
       await expect(controller.register(dto)).resolves.toBe(result);

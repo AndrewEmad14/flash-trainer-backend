@@ -106,6 +106,7 @@ describe('POST /api/v1/auth/register (US1)', () => {
       username: 'ab',
       email: 'not-an-email',
       password: 'abcdefgh',
+      passwordConfirmation: 'abcdefgh',
       phone: '0100',
     });
 
@@ -144,7 +145,28 @@ describe('POST /api/v1/auth/register (US1)', () => {
       detailsOf(response.body)
         .map((d) => d.field)
         .sort(),
-    ).toEqual(['email', 'fullName', 'password', 'username']);
+    ).toEqual(['email', 'fullName', 'password', 'passwordConfirmation', 'username']);
+  });
+
+  it('should reject a password confirmation that does not match (FR-033)', async () => {
+    const response = await register(app, newUser({ passwordConfirmation: 's3cretPasS' }));
+
+    expectErrorEnvelope(response, 400, 'VALIDATION_FAILED');
+    expect(detailsOf(response.body)).toEqual([
+      { field: 'passwordConfirmation', code: 'FIELD_CONFIRMATION_MISMATCH' },
+    ]);
+  });
+
+  it('should require the password confirmation (FR-033)', async () => {
+    const payload: Record<string, unknown> = { ...newUser() };
+    delete payload.passwordConfirmation;
+
+    const response = await register(app, payload);
+
+    expectErrorEnvelope(response, 400, 'VALIDATION_FAILED');
+    expect(detailsOf(response.body)).toEqual([
+      { field: 'passwordConfirmation', code: 'FIELD_REQUIRED' },
+    ]);
   });
 
   it('should let exactly one of two simultaneous duplicate registrations succeed', async () => {

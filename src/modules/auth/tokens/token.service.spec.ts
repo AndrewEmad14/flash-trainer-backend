@@ -1,4 +1,5 @@
 import { JwtService } from '@nestjs/jwt';
+import { ErrorCode } from '../../../common/errors/error-codes';
 import { sha256Hex } from '../../../common/utils/hash.util';
 import type { AppConfigService } from '../../../config/app-config.service';
 import { TokenService } from './token.service';
@@ -67,6 +68,51 @@ describe('TokenService', () => {
       expect(() => {
         jwt.verify(token, { secret: ACCESS_SECRET });
       }).toThrow();
+    });
+  });
+
+  describe('verifyEmailVerificationToken', () => {
+    it('should return the claims of a valid token', async () => {
+      const token = await tokens.signEmailVerificationToken({ id: 'u1', email: 'a@b.c' });
+
+      await expect(tokens.verifyEmailVerificationToken(token)).resolves.toEqual({
+        userId: 'u1',
+        email: 'a@b.c',
+      });
+    });
+
+    it('should reject an expired token with AUTH_LINK_EXPIRED', async () => {
+      const token = await tokens.signEmailVerificationToken({ id: 'u1', email: 'a@b.c' });
+      jest.setSystemTime(new Date(NOW.getTime() + 86_401_000));
+
+      await expect(tokens.verifyEmailVerificationToken(token)).rejects.toMatchObject({
+        code: ErrorCode.AUTH_LINK_EXPIRED,
+      });
+    });
+
+    it.each([
+      ['garbage', async () => Promise.resolve('not-a-jwt')],
+      [
+        'signed with the access secret',
+        async () =>
+          jwt.signAsync(
+            { sub: 'u1', email: 'a@b.c', purpose: 'verify_email' },
+            { secret: ACCESS_SECRET },
+          ),
+      ],
+      [
+        'with the wrong purpose',
+        async () =>
+          jwt.signAsync({ sub: 'u1', email: 'a@b.c', purpose: 'reset' }, { secret: EMAIL_SECRET }),
+      ],
+      [
+        'missing the email',
+        async () => jwt.signAsync({ sub: 'u1', purpose: 'verify_email' }, { secret: EMAIL_SECRET }),
+      ],
+    ])('should reject a token %s with AUTH_LINK_INVALID', async (_case, make) => {
+      await expect(tokens.verifyEmailVerificationToken(await make())).rejects.toMatchObject({
+        code: ErrorCode.AUTH_LINK_INVALID,
+      });
     });
   });
 });

@@ -7,6 +7,7 @@ const valid = {
   username: 'Ahmed_A',
   email: 'ahmed@mail.com',
   password: 's3cretPass',
+  passwordConfirmation: 's3cretPass',
 };
 
 const check = async (input: object): Promise<{ dto: RegisterDto; failed: string[] }> => {
@@ -41,7 +42,11 @@ describe('RegisterDto', () => {
   });
 
   it('should never trim the password', async () => {
-    const { dto } = await check({ ...valid, password: ' pass word 1 ' });
+    const { dto } = await check({
+      ...valid,
+      password: ' pass word 1 ',
+      passwordConfirmation: ' pass word 1 ',
+    });
 
     expect(dto.password).toBe(' pass word 1 ');
   });
@@ -55,7 +60,9 @@ describe('RegisterDto', () => {
     ['username', { username: 'ahmed@x' }],
     ['email', { email: 'nope' }],
     ['email', { email: `${'x'.repeat(250)}@a.co` }],
-    ['password', { password: 'abcdefgh' }],
+    ['password', { password: 'abcdefgh', passwordConfirmation: 'abcdefgh' }],
+    ['passwordConfirmation', { passwordConfirmation: 's3cretPasS' }],
+    ['passwordConfirmation', { passwordConfirmation: '' }],
     ['phone', { phone: '01001234567' }],
     ['deviceName', { deviceName: 'x'.repeat(101) }],
     ['deviceOs', { deviceOs: 'x'.repeat(51) }],

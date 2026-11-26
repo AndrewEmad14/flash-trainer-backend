@@ -20,7 +20,13 @@ const uniqueError = (meta: Record<string, unknown>): Prisma.PrismaClientKnownReq
   });
 
 describe('UsersRepository', () => {
-  const user = { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() };
+  const user = {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    updateMany: jest.fn(),
+    update: jest.fn(),
+  };
   const repository = new UsersRepository({ user } as unknown as PrismaService);
 
   beforeEach(() => jest.resetAllMocks());
@@ -110,6 +116,30 @@ describe('UsersRepository', () => {
           where: { OR: [{ email: 'ahmed@mail.com' }, { username: 'Ahmed_A' }] },
         }),
       );
+    });
+  });
+
+  describe('markEmailVerified', () => {
+    it('should set emailVerifiedAt only when it is still empty', async () => {
+      user.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+      await expect(repository.markEmailVerified('u1')).resolves.toBe(true);
+      await expect(repository.markEmailVerified('u1')).resolves.toBe(false);
+      expect(user.updateMany).toHaveBeenCalledWith({
+        where: { id: 'u1', emailVerifiedAt: null },
+        data: { emailVerifiedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('updatePasswordHash', () => {
+    it('should replace the password hash', async () => {
+      await repository.updatePasswordHash('u1', 'new-hash');
+
+      expect(user.update).toHaveBeenCalledWith({
+        where: { id: 'u1' },
+        data: { passwordHash: 'new-hash' },
+      });
     });
   });
 });

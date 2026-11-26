@@ -13,6 +13,7 @@ const dto = {
   username: 'Ahmed_A',
   email: 'ahmed@mail.com',
   password: 's3cretPass',
+  passwordConfirmation: 's3cretPass',
   deviceName: 'Pixel 9',
   deviceOs: 'Android 16',
 };
