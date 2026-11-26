@@ -58,6 +58,14 @@ export function register(app: NestExpressApplication, payload: object): Promise<
     .then((r) => r);
 }
 
+/** POST /api/v1/auth/refresh, returning the raw response. */
+export function refresh(app: NestExpressApplication, refreshToken: unknown): Promise<Response> {
+  return request(app.getHttpServer())
+    .post('/api/v1/auth/refresh')
+    .send({ refreshToken })
+    .then((r) => r);
+}
+
 /** POST /api/v1/auth/login, returning the raw response. */
 export function login(app: NestExpressApplication, payload: object): Promise<Response> {
   return request(app.getHttpServer())

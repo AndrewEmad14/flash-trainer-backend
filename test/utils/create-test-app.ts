@@ -1,8 +1,23 @@
+import { Controller, Get, type Type } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ThrottlerStorage, ThrottlerStorageService } from '@nestjs/throttler';
 import { AppModule } from '../../src/app.module';
 import { setupApp } from '../../src/app.setup';
+import { CurrentUser } from '../../src/common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../src/common/http/authenticated-request';
+
+/**
+ * Test-only protected route (`GET /api/v1/test/protected`). It lets e2e tests exercise the
+ * global JWT guard before any real protected endpoint exists. It is never part of the app.
+ */
+@Controller('test')
+export class TestProtectedController {
+  @Get('protected')
+  whoAmI(@CurrentUser() user: AuthenticatedUser): AuthenticatedUser {
+    return user;
+  }
+}
 
 type IncrementArgs = Parameters<ThrottlerStorageService['increment']>;
 
@@ -32,9 +47,15 @@ export class ResettableThrottlerStorage implements ThrottlerStorage {
 /**
  * Boots the full app exactly like `main.ts` (same pipes, filter, interceptor and guards),
  * against the test database and the console mailer (see load-test-env.ts).
+ * Pass `controllers: [TestProtectedController]` to get a protected route for guard tests.
  */
-export async function createTestApp(): Promise<NestExpressApplication> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+export async function createTestApp(
+  options: { controllers?: Type[] } = {},
+): Promise<NestExpressApplication> {
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+    controllers: options.controllers ?? [],
+  })
     .overrideProvider(ThrottlerStorage)
     .useValue(new ResettableThrottlerStorage())
     .compile();

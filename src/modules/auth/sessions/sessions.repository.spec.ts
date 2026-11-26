@@ -2,7 +2,7 @@ import type { PrismaService } from '../../../prisma/prisma.service';
 import { SessionsRepository } from './sessions.repository';
 
 describe('SessionsRepository', () => {
-  const authSession = { create: jest.fn() };
+  const authSession = { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() };
   const repository = new SessionsRepository({ authSession } as unknown as PrismaService);
 
   afterEach(() => jest.useRealTimers());
@@ -21,6 +21,29 @@ describe('SessionsRepository', () => {
     await expect(repository.create(data)).resolves.toEqual({ id: 's1' });
     expect(authSession.create).toHaveBeenCalledWith({
       data: { ...data, lastUsedAt: new Date('2026-11-25T10:00:00Z') },
+    });
+  });
+
+  it('should find a session by refresh-token hash', async () => {
+    authSession.findUnique.mockResolvedValue(null);
+
+    await expect(repository.findByRefreshTokenHash('h1')).resolves.toBeNull();
+    expect(authSession.findUnique).toHaveBeenCalledWith({ where: { refreshTokenHash: 'h1' } });
+  });
+
+  it('should rotate only if the session still holds the current hash and is not revoked', async () => {
+    const data = {
+      refreshTokenHash: 'h2',
+      expiresAt: new Date('2026-12-25T10:00:00Z'),
+      lastUsedAt: new Date('2026-11-25T10:00:00Z'),
+    };
+    authSession.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+    await expect(repository.rotate('s1', 'h1', data)).resolves.toBe(true);
+    await expect(repository.rotate('s1', 'h1', data)).resolves.toBe(false);
+    expect(authSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 's1', refreshTokenHash: 'h1', revokedAt: null },
+      data,
     });
   });
 });

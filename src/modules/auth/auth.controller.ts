@@ -6,15 +6,21 @@ import { AuthThrottle } from '../../common/decorators/auth-throttle.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { AuthService } from './auth.service';
+import { AuthTokensDto } from './dto/auth-tokens.dto';
 import { AuthResultDto } from './dto/auth-result.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { SessionsService } from './sessions/sessions.service';
 import { RegisterDto } from './dto/register.dto';
 
 /** Account and session endpoints (contracts/auth-api.md). HTTP only; logic is in AuthService. */
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly sessions: SessionsService,
+  ) {}
 
   /**
    * POST /api/v1/auth/register (US1).
@@ -74,5 +80,36 @@ export class AuthController {
   )
   login(@Body() dto: LoginDto): Promise<AuthResultDto> {
     return this.auth.login(dto);
+  }
+
+  /**
+   * POST /api/v1/auth/refresh (US3).
+   *
+   * @throws AppException VALIDATION_FAILED, AUTH_SESSION_INVALID, AUTH_SESSION_EXPIRED,
+   *   RATE_LIMIT_EXCEEDED.
+   */
+  @Post('refresh')
+  @Public()
+  @AuthThrottle()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refresh the session (get new tokens)',
+    description: `Exchanges the refresh token for a **new access token and a new refresh token**. The old refresh token stops working immediately (rotation), and the session's 30-day expiry restarts from now.
+
+**When to call it:** when any request fails with \`AUTH_TOKEN_EXPIRED\`, refresh, then retry the original request.
+
+**⚠️ Only one refresh at a time.** Each refresh token works exactly once. If the app sends two refreshes in parallel with the same token, one succeeds and the other gets \`AUTH_SESSION_INVALID\`. Queue requests behind a single in-flight refresh.
+
+**Errors:** \`AUTH_SESSION_EXPIRED\` (not used for 30 days) or \`AUTH_SESSION_INVALID\` (signed out, already used, or account deleted) both mean: clear the stored tokens and show the sign-in screen.`,
+  })
+  @ApiEnvelopeResponse(AuthTokensDto, { description: 'New tokens for the same session.' })
+  @ApiErrorResponses(
+    ErrorCode.VALIDATION_FAILED,
+    ErrorCode.AUTH_SESSION_INVALID,
+    ErrorCode.AUTH_SESSION_EXPIRED,
+    ErrorCode.RATE_LIMIT_EXCEEDED,
+  )
+  refresh(@Body() dto: RefreshTokenDto): Promise<AuthTokensDto> {
+    return this.sessions.refresh(dto.refreshToken);
   }
 }
