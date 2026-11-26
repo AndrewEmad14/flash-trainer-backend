@@ -17,6 +17,7 @@ describe('UsersService', () => {
     create: jest.fn(),
     findByEmail: jest.fn(),
     findByUsername: jest.fn(),
+    findById: jest.fn(),
   };
   const service = new UsersService(repository as unknown as UsersRepository);
 
@@ -64,6 +65,43 @@ describe('UsersService', () => {
 
       await expect(service.findByIdentifier(' Ahmed_A ')).resolves.toBeNull();
       expect(repository.findByUsername).toHaveBeenCalledWith('Ahmed_A');
+    });
+  });
+
+  describe('getMe', () => {
+    it('should return the public view of the account', async () => {
+      repository.findById.mockResolvedValue({
+        id: 'u1',
+        fullName: 'Ahmed Ali',
+        username: 'Ahmed_A',
+        email: 'ahmed@mail.com',
+        emailVerifiedAt: null,
+        phone: null,
+        passwordHash: 'secret-hash',
+        createdAt: new Date('2026-11-25T10:00:00.000Z'),
+        updatedAt: new Date('2026-11-25T10:00:00.000Z'),
+      });
+
+      const me = await service.getMe('u1');
+
+      expect(repository.findById).toHaveBeenCalledWith('u1');
+      expect(me).toEqual({
+        id: 'u1',
+        fullName: 'Ahmed Ali',
+        username: 'Ahmed_A',
+        email: 'ahmed@mail.com',
+        isEmailVerified: false,
+        phone: null,
+        createdAt: '2026-11-25T10:00:00.000Z',
+      });
+    });
+
+    it('should throw AUTH_TOKEN_INVALID when the account no longer exists', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(service.getMe('gone')).rejects.toMatchObject({
+        code: ErrorCode.AUTH_TOKEN_INVALID,
+      });
     });
   });
 });

@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { User } from '../../generated/prisma/client';
+import { AppException } from '../../common/errors/app.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
 import { normalizeEmail } from '../../common/utils/normalize.util';
+import type { UserResponseDto } from './dto/user-response.dto';
+import { toUserResponse } from './user.mapper';
 import { identityTakenException } from './user-identity.errors';
 import { UsersRepository, type CreateUserData } from './users.repository';
 
@@ -42,5 +46,19 @@ export class UsersService {
     return value.includes('@')
       ? this.users.findByEmail(String(normalizeEmail(value)))
       : this.users.findByUsername(value);
+  }
+
+  /**
+   * The signed-in user's own account (US4, FR-015).
+   *
+   * @param userId - From the verified access token.
+   * @returns The public account view (never contains secrets).
+   * @throws AppException AUTH_TOKEN_INVALID when the account was deleted after the access
+   *   token was issued. The token is still validly signed, but it no longer identifies anyone.
+   */
+  async getMe(userId: string): Promise<UserResponseDto> {
+    const user = await this.users.findById(userId);
+    if (!user) throw new AppException(ErrorCode.AUTH_TOKEN_INVALID);
+    return toUserResponse(user);
   }
 }
