@@ -58,9 +58,16 @@ export function register(app: NestExpressApplication, payload: object): Promise<
     .then((r) => r);
 }
 
+/** POST /api/v1/auth/login, returning the raw response. */
+export function login(app: NestExpressApplication, payload: object): Promise<Response> {
+  return request(app.getHttpServer())
+    .post('/api/v1/auth/login')
+    .send(payload)
+    .then((r) => r);
+}
+
 /**
  * Registers a fresh user, which also signs in that device (US1), and returns the auth result.
- * Login by credentials (US2) can be added here once it exists.
  *
  * @throws Error if registration doesn't return 201.
  */

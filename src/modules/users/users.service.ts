@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { User } from '../../generated/prisma/client';
+import { normalizeEmail } from '../../common/utils/normalize.util';
 import { identityTakenException } from './user-identity.errors';
 import { UsersRepository, type CreateUserData } from './users.repository';
 
@@ -26,5 +27,20 @@ export class UsersService {
       throw identityTakenException(conflicts);
     }
     return this.users.create(data);
+  }
+
+  /**
+   * Resolves a sign-in identifier (research R10): a value containing `@` is an email, matched
+   * after lowercasing; anything else is a username, matched case-insensitively. Usernames
+   * can't contain `@` (FR-004), so this is unambiguous.
+   *
+   * @param identifier - Email or username as entered.
+   * @returns The matching user, or `null`.
+   */
+  findByIdentifier(identifier: string): Promise<User | null> {
+    const value = identifier.trim();
+    return value.includes('@')
+      ? this.users.findByEmail(String(normalizeEmail(value)))
+      : this.users.findByUsername(value);
   }
 }

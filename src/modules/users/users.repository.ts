@@ -58,6 +58,16 @@ export class UsersRepository {
     }
   }
 
+  /** Finds a user by exact (already lowercased) email, or `null`. */
+  findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  /** Finds a user by username, ignoring letter case (citext), or `null`. */
+  findByUsername(username: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { username } });
+  }
+
   /** Finds a user by id, or `null`. */
   findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });

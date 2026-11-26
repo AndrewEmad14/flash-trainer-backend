@@ -12,7 +12,12 @@ const data = {
 };
 
 describe('UsersService', () => {
-  const repository = { findConflicts: jest.fn(), create: jest.fn() };
+  const repository = {
+    findConflicts: jest.fn(),
+    create: jest.fn(),
+    findByEmail: jest.fn(),
+    findByUsername: jest.fn(),
+  };
   const service = new UsersService(repository as unknown as UsersRepository);
 
   beforeEach(() => jest.resetAllMocks());
@@ -42,6 +47,23 @@ describe('UsersService', () => {
         DetailCode.USER_PHONE_TAKEN,
       ]);
       expect(repository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findByIdentifier', () => {
+    it('should treat values with @ as an email, lowercased and trimmed', async () => {
+      repository.findByEmail.mockResolvedValue({ id: 'u1' });
+
+      await expect(service.findByIdentifier(' AHMED@Mail.com ')).resolves.toEqual({ id: 'u1' });
+      expect(repository.findByEmail).toHaveBeenCalledWith('ahmed@mail.com');
+      expect(repository.findByUsername).not.toHaveBeenCalled();
+    });
+
+    it('should treat other values as a username', async () => {
+      repository.findByUsername.mockResolvedValue(null);
+
+      await expect(service.findByIdentifier(' Ahmed_A ')).resolves.toBeNull();
+      expect(repository.findByUsername).toHaveBeenCalledWith('Ahmed_A');
     });
   });
 });

@@ -6,6 +6,8 @@ import { AuthService } from './auth.service';
 import { EmailDispatchRepository } from './email-dispatch/email-dispatch.repository';
 import { EmailDispatchService } from './email-dispatch/email-dispatch.service';
 import { EmailVerificationService } from './email-verification/email-verification.service';
+import { LoginAttemptsRepository } from './login-throttle/login-attempts.repository';
+import { LoginThrottleService } from './login-throttle/login-throttle.service';
 import { PasswordHasherService } from './passwords/password-hasher.service';
 import { SessionsRepository } from './sessions/sessions.repository';
 import { SessionsService } from './sessions/sessions.service';
@@ -24,6 +26,8 @@ import { TokenService } from './tokens/token.service';
     EmailDispatchRepository,
     EmailDispatchService,
     EmailVerificationService,
+    LoginAttemptsRepository,
+    LoginThrottleService,
   ],
 })
 export class AuthModule {}

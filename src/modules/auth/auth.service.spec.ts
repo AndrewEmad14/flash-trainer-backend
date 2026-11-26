@@ -4,7 +4,7 @@ import type { User } from '../../generated/prisma/client';
 import type { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import type { EmailVerificationService } from './email-verification/email-verification.service';
-import type { PasswordHasherService } from './passwords/password-hasher.service';
+import type { LoginThrottleService } from './login-throttle/login-throttle.service';
 import type { SessionsService } from './sessions/sessions.service';
 
 const dto = {
@@ -37,15 +37,22 @@ const tokens = {
 };
 
 describe('AuthService', () => {
-  const users = { createUser: jest.fn() };
-  const passwords = { hash: jest.fn() };
+  const users = { createUser: jest.fn(), findByIdentifier: jest.fn() };
+  const passwords = { hash: jest.fn(), verify: jest.fn(), verifyDummy: jest.fn() };
+  const loginThrottle = {
+    keyFor: jest.fn(),
+    assertNotLocked: jest.fn(),
+    registerFailure: jest.fn(),
+    reset: jest.fn(),
+  };
   const sessions = { createSession: jest.fn() };
   const emailVerification = { sendVerificationEmail: jest.fn() };
   const service = new AuthService(
     users as unknown as UsersService,
-    passwords as unknown as PasswordHasherService,
+    passwords,
     sessions as unknown as SessionsService,
     emailVerification as unknown as EmailVerificationService,
+    loginThrottle as unknown as LoginThrottleService,
   );
 
   beforeEach(() => {
@@ -54,6 +61,10 @@ describe('AuthService', () => {
     users.createUser.mockResolvedValue(storedUser);
     sessions.createSession.mockResolvedValue(tokens);
     emailVerification.sendVerificationEmail.mockResolvedValue(undefined);
+    loginThrottle.keyFor.mockImplementation((id: string | null, identifier: string) =>
+      id ? `user:${id}` : `ident:${identifier}`,
+    );
+    loginThrottle.assertNotLocked.mockResolvedValue(undefined);
   });
 
   describe('register', () => {
@@ -93,6 +104,71 @@ describe('AuthService', () => {
       });
       expect(sessions.createSession).not.toHaveBeenCalled();
       expect(emailVerification.sendVerificationEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('login', () => {
+    const credentials = { identifier: 'ahmed@mail.com', password: 's3cretPass', deviceName: 'P9' };
+
+    it('should sign the device in and reset the counter for valid credentials', async () => {
+      users.findByIdentifier.mockResolvedValue(storedUser);
+      passwords.verify.mockResolvedValue(true);
+
+      const result = await service.login(credentials);
+
+      expect(loginThrottle.assertNotLocked).toHaveBeenCalledWith('user:u1');
+      expect(passwords.verify).toHaveBeenCalledWith('argon-hash', 's3cretPass');
+      expect(loginThrottle.reset).toHaveBeenCalledWith('user:u1');
+      expect(sessions.createSession).toHaveBeenCalledWith('u1', {
+        deviceName: 'P9',
+        deviceOs: undefined,
+      });
+      expect(result).toEqual({ user: expect.objectContaining({ id: 'u1' }), tokens });
+    });
+
+    it('should count a failure and reject a wrong password', async () => {
+      users.findByIdentifier.mockResolvedValue(storedUser);
+      passwords.verify.mockResolvedValue(false);
+
+      await expect(service.login(credentials)).rejects.toMatchObject({
+        code: ErrorCode.AUTH_INVALID_CREDENTIALS,
+      });
+      expect(loginThrottle.registerFailure).toHaveBeenCalledWith('user:u1');
+      expect(sessions.createSession).not.toHaveBeenCalled();
+    });
+
+    it('should verify against a dummy hash and fail identically for an unknown identifier', async () => {
+      users.findByIdentifier.mockResolvedValue(null);
+      passwords.verifyDummy.mockResolvedValue(false);
+
+      await expect(service.login(credentials)).rejects.toMatchObject({
+        code: ErrorCode.AUTH_INVALID_CREDENTIALS,
+      });
+      expect(passwords.verifyDummy).toHaveBeenCalledWith('s3cretPass');
+      expect(loginThrottle.registerFailure).toHaveBeenCalledWith('ident:ahmed@mail.com');
+    });
+
+    it('should treat an account without a password as invalid credentials', async () => {
+      users.findByIdentifier.mockResolvedValue({ ...storedUser, passwordHash: null });
+      passwords.verifyDummy.mockResolvedValue(false);
+
+      await expect(service.login(credentials)).rejects.toMatchObject({
+        code: ErrorCode.AUTH_INVALID_CREDENTIALS,
+      });
+      expect(passwords.verify).not.toHaveBeenCalled();
+    });
+
+    it('should refuse a locked key before checking the password', async () => {
+      users.findByIdentifier.mockResolvedValue(storedUser);
+      loginThrottle.assertNotLocked.mockRejectedValue(
+        new AppException(ErrorCode.AUTH_TOO_MANY_ATTEMPTS),
+      );
+
+      await expect(service.login(credentials)).rejects.toMatchObject({
+        code: ErrorCode.AUTH_TOO_MANY_ATTEMPTS,
+      });
+      expect(passwords.verify).not.toHaveBeenCalled();
+      expect(loginThrottle.registerFailure).not.toHaveBeenCalled();
     });
   });
 });

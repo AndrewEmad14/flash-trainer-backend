@@ -7,6 +7,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { AuthService } from './auth.service';
 import { AuthResultDto } from './dto/auth-result.dto';
+import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
 /** Account and session endpoints (contracts/auth-api.md). HTTP only; logic is in AuthService. */
@@ -43,5 +44,35 @@ export class AuthController {
   )
   register(@Body() dto: RegisterDto): Promise<AuthResultDto> {
     return this.auth.register(dto);
+  }
+
+  /**
+   * POST /api/v1/auth/login (US2).
+   *
+   * @throws AppException VALIDATION_FAILED, AUTH_INVALID_CREDENTIALS, AUTH_TOO_MANY_ATTEMPTS,
+   *   RATE_LIMIT_EXCEEDED.
+   */
+  @Post('login')
+  @Public()
+  @AuthThrottle()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Sign in with email or username',
+    description: `Signs this device in and returns new tokens. Each sign-in creates a separate device session.
+
+- \`identifier\` may be the email or the username (both case-insensitive).
+- A wrong password and an unknown account return the **same** \`AUTH_INVALID_CREDENTIALS\` error, so the response never reveals whether an account exists.
+- After **5 failed attempts within 15 minutes**, sign-in is blocked for 15 minutes, even with the correct password. The response is \`AUTH_TOO_MANY_ATTEMPTS\` (429), with a \`Retry-After\` header in seconds for a countdown. Unknown identifiers are locked the same way.
+- Rate limited to 10 requests per minute per IP.`,
+  })
+  @ApiEnvelopeResponse(AuthResultDto, { description: 'Signed in.' })
+  @ApiErrorResponses(
+    ErrorCode.VALIDATION_FAILED,
+    ErrorCode.AUTH_INVALID_CREDENTIALS,
+    ErrorCode.AUTH_TOO_MANY_ATTEMPTS,
+    ErrorCode.RATE_LIMIT_EXCEEDED,
+  )
+  login(@Body() dto: LoginDto): Promise<AuthResultDto> {
+    return this.auth.login(dto);
   }
 }

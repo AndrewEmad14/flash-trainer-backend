@@ -67,6 +67,18 @@ describe('UsersRepository', () => {
     });
   });
 
+  describe('findByEmail / findByUsername', () => {
+    it('should look users up by their unique email or username', async () => {
+      user.findUnique.mockResolvedValue(null);
+
+      await repository.findByEmail('ahmed@mail.com');
+      await repository.findByUsername('ahmed_a');
+
+      expect(user.findUnique).toHaveBeenNthCalledWith(1, { where: { email: 'ahmed@mail.com' } });
+      expect(user.findUnique).toHaveBeenNthCalledWith(2, { where: { username: 'ahmed_a' } });
+    });
+  });
+
   describe('findConflicts', () => {
     const lookup = { email: 'ahmed@mail.com', username: 'Ahmed_A', phone: '+201001234567' };
 
