@@ -74,6 +74,27 @@ export class SessionsService {
     const access = await this.tokens.signAccessToken({ sub: session.userId, sid: session.id });
     return toAuthTokens(access, next);
   }
+
+  /**
+   * Signs out the device that owns `refreshToken` (US5, FR-016). Idempotent: unknown, used
+   * or already-revoked tokens are silently accepted, so the app can always finish signing
+   * out. Its access token keeps working until it expires (at most 15 min, FR-014).
+   */
+  async logoutByRefreshToken(refreshToken: string): Promise<void> {
+    const session = await this.sessions.findByRefreshTokenHash(sha256Hex(refreshToken));
+    if (session && !session.revokedAt) {
+      await this.sessions.revoke(session.id);
+    }
+  }
+
+  /**
+   * Revokes every active session of a user (logout-all), optionally keeping one.
+   *
+   * @returns How many sessions were revoked.
+   */
+  revokeAll(userId: string, exceptSessionId?: string): Promise<number> {
+    return this.sessions.revokeAllForUser(userId, exceptSessionId ? { exceptSessionId } : {});
+  }
 }
 
 function toAuthTokens(access: SignedToken, refresh: IssuedRefreshToken): AuthTokensDto {

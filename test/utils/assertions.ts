@@ -13,13 +13,15 @@ export function expectErrorEnvelope(response: Response, status: number, code: st
   );
 }
 
-/** Asserts the success envelope and returns `data` (cast it at the call site). */
+/**
+ * Asserts the success envelope and returns `data` (cast it at the call site). `data` may be
+ * `null` (endpoints that return nothing), but the key must always be present.
+ */
 export function expectSuccessEnvelope(response: Response, status = 200): unknown {
   expect(response.status).toBe(status);
-  expect(response.body).toEqual({
-    success: true,
-    data: expect.anything() as unknown,
-    meta: { requestId: expect.any(String), timestamp: expect.any(String) },
-  });
-  return (response.body as { data: unknown }).data;
+  const body = response.body as Record<string, unknown>;
+  expect(Object.keys(body).sort()).toEqual(['data', 'meta', 'success']);
+  expect(body.success).toBe(true);
+  expect(body.meta).toEqual({ requestId: expect.any(String), timestamp: expect.any(String) });
+  return body.data;
 }

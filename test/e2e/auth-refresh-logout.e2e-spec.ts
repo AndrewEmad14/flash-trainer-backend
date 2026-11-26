@@ -4,7 +4,15 @@ import request from 'supertest';
 import { sha256Hex } from '../../src/common/utils/hash.util';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { expectErrorEnvelope, expectSuccessEnvelope } from '../utils/assertions';
-import { refresh, registerAndLogin, type AuthTokens } from '../utils/auth';
+import {
+  login,
+  logout,
+  logoutAll,
+  refresh,
+  registerAndLogin,
+  type AuthResult,
+  type AuthTokens,
+} from '../utils/auth';
 import { createTestApp, resetThrottling, TestProtectedController } from '../utils/create-test-app';
 import { truncateAll } from '../utils/db';
 
@@ -147,5 +155,103 @@ describe('POST /api/v1/auth/refresh (US3)', () => {
       expectErrorEnvelope(await call(), 401, 'AUTH_TOKEN_MISSING');
       expectErrorEnvelope(await call('garbage'), 401, 'AUTH_TOKEN_INVALID');
     });
+  });
+});
+
+describe('POST /api/v1/auth/logout and /logout-all (US5)', () => {
+  let app: NestExpressApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    prisma = app.get(PrismaService);
+  });
+
+  beforeEach(async () => {
+    await truncateAll(app);
+    resetThrottling(app);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  /** Registers (device A) and signs in again (device B) as the same user. */
+  const twoDevices = async (): Promise<{ a: AuthTokens; b: AuthTokens; userId: string }> => {
+    const registered = await registerAndLogin(app);
+    const second = await login(app, {
+      identifier: registered.payload.email,
+      password: registered.payload.password,
+      deviceName: 'Device B',
+    });
+    return {
+      a: registered.tokens,
+      b: (expectSuccessEnvelope(second) as AuthResult).tokens,
+      userId: registered.user.id,
+    };
+  };
+
+  it('should sign out only the device that owns the refresh token', async () => {
+    const { a, b } = await twoDevices();
+
+    const response = await logout(app, a.refreshToken);
+
+    expect(expectSuccessEnvelope(response)).toBeNull();
+    expectErrorEnvelope(await refresh(app, a.refreshToken), 401, 'AUTH_SESSION_INVALID');
+    expect((await refresh(app, b.refreshToken)).status).toBe(200);
+  });
+
+  it('should work without an access token (e.g. after it expired)', async () => {
+    const { a } = await twoDevices();
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/logout')
+      .send({ refreshToken: a.refreshToken });
+
+    expect(response.status).toBe(200);
+  });
+
+  it('should clear the push token and keep the first revocation time', async () => {
+    const { a, userId } = await twoDevices();
+    await prisma.authSession.updateMany({ where: { userId }, data: { fcmToken: 'fcm-token-1' } });
+
+    await logout(app, a.refreshToken);
+    const revoked = await prisma.authSession.findFirst({
+      where: { userId, revokedAt: { not: null } },
+    });
+    await logout(app, a.refreshToken);
+    const again = await prisma.authSession.findUnique({ where: { id: revoked?.id } });
+
+    expect(revoked?.fcmToken).toBeNull();
+    expect(again?.revokedAt?.getTime()).toBe(revoked?.revokedAt?.getTime());
+  });
+
+  it('should return 200 for an unknown or already-revoked token (idempotent)', async () => {
+    const { a } = await twoDevices();
+    await logout(app, a.refreshToken);
+
+    expect((await logout(app, a.refreshToken)).status).toBe(200);
+    expect((await logout(app, 'never-issued')).status).toBe(200);
+  });
+
+  it('should require a refresh token in the body', async () => {
+    expectErrorEnvelope(await logout(app, undefined), 400, 'VALIDATION_FAILED');
+  });
+
+  it('should sign out every device of the user with logout-all, and no one else', async () => {
+    const { a, b, userId } = await twoDevices();
+    const stranger = await registerAndLogin(app);
+
+    const response = await logoutAll(app, a.accessToken);
+
+    expect(expectSuccessEnvelope(response)).toBeNull();
+    expectErrorEnvelope(await refresh(app, a.refreshToken), 401, 'AUTH_SESSION_INVALID');
+    expectErrorEnvelope(await refresh(app, b.refreshToken), 401, 'AUTH_SESSION_INVALID');
+    expect((await refresh(app, stranger.tokens.refreshToken)).status).toBe(200);
+    expect(await prisma.authSession.count({ where: { userId, revokedAt: null } })).toBe(0);
+  });
+
+  it('should require an access token for logout-all', async () => {
+    expectErrorEnvelope(await logoutAll(app), 401, 'AUTH_TOKEN_MISSING');
   });
 });
