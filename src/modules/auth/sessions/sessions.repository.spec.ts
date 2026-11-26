@@ -75,4 +75,33 @@ describe('SessionsRepository', () => {
       data: { revokedAt: expect.any(Date), fcmToken: null },
     });
   });
+
+  it('should list only active sessions of the user, newest use first', async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-25T10:00:00Z') });
+    const findMany = jest.fn().mockResolvedValue([]);
+    const repo = new SessionsRepository({ authSession: { findMany } } as unknown as PrismaService);
+
+    await repo.listActive('u1');
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', revokedAt: null, expiresAt: { gt: new Date('2026-11-25T10:00:00Z') } },
+      orderBy: [{ lastUsedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+  });
+
+  it("should find an active session only within the user's own sessions", async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-25T10:00:00Z') });
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const repo = new SessionsRepository({ authSession: { findFirst } } as unknown as PrismaService);
+
+    await expect(repo.findActiveByIdForUser('s1', 'u1')).resolves.toBeNull();
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 's1',
+        userId: 'u1',
+        revokedAt: null,
+        expiresAt: { gt: new Date('2026-11-25T10:00:00Z') },
+      },
+    });
+  });
 });

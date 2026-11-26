@@ -3,8 +3,10 @@ import { AppException } from '../../../common/errors/app.exception';
 import { ErrorCode } from '../../../common/errors/error-codes';
 import { sha256Hex } from '../../../common/utils/hash.util';
 import type { AuthTokensDto } from '../dto/auth-tokens.dto';
+import type { SessionResponseDto } from '../dto/session-response.dto';
 import type { IssuedRefreshToken, SignedToken } from '../tokens/token.service';
 import { TokenService } from '../tokens/token.service';
+import { toSessionResponse } from './session.mapper';
 import { SessionsRepository } from './sessions.repository';
 
 export interface DeviceInfo {
@@ -94,6 +96,30 @@ export class SessionsService {
    */
   revokeAll(userId: string, exceptSessionId?: string): Promise<number> {
     return this.sessions.revokeAllForUser(userId, exceptSessionId ? { exceptSessionId } : {});
+  }
+
+  /**
+   * The user's active devices, with the requesting device marked (US6, FR-017).
+   *
+   * @param userId - The signed-in user.
+   * @param currentSessionId - `sid` of the access token making the request.
+   */
+  async listForUser(userId: string, currentSessionId: string): Promise<SessionResponseDto[]> {
+    const sessions = await this.sessions.listActive(userId);
+    return sessions.map((session) => toSessionResponse(session, currentSessionId));
+  }
+
+  /**
+   * Signs out one of the user's own devices remotely (US6). Revoking the current device is
+   * allowed and works like signing out.
+   *
+   * @throws AppException SESSION_NOT_FOUND when the session doesn't exist, isn't active, or
+   *   belongs to someone else. All three look the same, so nothing leaks (FR-031).
+   */
+  async revokeOwnSession(userId: string, sessionId: string): Promise<void> {
+    const session = await this.sessions.findActiveByIdForUser(sessionId, userId);
+    if (!session) throw new AppException(ErrorCode.SESSION_NOT_FOUND);
+    await this.sessions.revoke(session.id);
   }
 }
 

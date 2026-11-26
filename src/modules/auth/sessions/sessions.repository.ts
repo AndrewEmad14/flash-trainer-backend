@@ -81,4 +81,25 @@ export class SessionsRepository {
     });
     return count;
   }
+
+  /**
+   * A user's active sessions (data-model.md: `revoked_at IS NULL AND expires_at > now`),
+   * most recently used first.
+   */
+  listActive(userId: string): Promise<AuthSession[]> {
+    return this.prisma.authSession.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: [{ lastUsedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  /**
+   * An active session only if it belongs to `userId`, so callers can't learn about other
+   * users' sessions (FR-031).
+   */
+  findActiveByIdForUser(id: string, userId: string): Promise<AuthSession | null> {
+    return this.prisma.authSession.findFirst({
+      where: { id, userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    });
+  }
 }

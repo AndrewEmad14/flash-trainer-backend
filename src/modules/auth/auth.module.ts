@@ -12,6 +12,7 @@ import { EmailVerificationService } from './email-verification/email-verificatio
 import { LoginAttemptsRepository } from './login-throttle/login-attempts.repository';
 import { LoginThrottleService } from './login-throttle/login-throttle.service';
 import { PasswordHasherService } from './passwords/password-hasher.service';
+import { SessionsController } from './sessions/sessions.controller';
 import { SessionsRepository } from './sessions/sessions.repository';
 import { SessionsService } from './sessions/sessions.service';
 import { TokenService } from './tokens/token.service';
@@ -19,7 +20,7 @@ import { TokenService } from './tokens/token.service';
 /** Authentication & account security (feature 001). */
 @Module({
   imports: [UsersModule, MailModule],
-  controllers: [AuthController],
+  controllers: [AuthController, SessionsController],
   providers: [
     AuthService,
     PasswordHasherService,
