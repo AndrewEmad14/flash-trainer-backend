@@ -24,6 +24,7 @@ describe('AppConfigService', () => {
     expect(config.logLevel).toBe('info');
     expect(config.refreshTokenTtlDays).toBe(30);
     expect(config.swaggerEnabled).toBe(false);
+    expect(config.emailDnsCheckEnabled).toBe(true);
     expect(config.jwt).toEqual({
       accessSecret: 'a'.repeat(40),
       accessTtlSeconds: 900,

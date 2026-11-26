@@ -6,6 +6,7 @@ import { UsersService } from '../users/users.service';
 import type { AuthResultDto } from './dto/auth-result.dto';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
+import { EmailDomainService } from './email-domain/email-domain.service';
 import { EmailVerificationService } from './email-verification/email-verification.service';
 import { LoginThrottleService } from './login-throttle/login-throttle.service';
 import { PasswordHasherService } from './passwords/password-hasher.service';
@@ -20,6 +21,7 @@ export class AuthService {
     private readonly sessions: SessionsService,
     private readonly emailVerification: EmailVerificationService,
     private readonly loginThrottle: LoginThrottleService,
+    private readonly emailDomain: EmailDomainService,
   ) {}
 
   /**
@@ -27,9 +29,12 @@ export class AuthService {
    *
    * @param dto - Validated, normalised registration data.
    * @returns The new account and this device's tokens.
+   * @throws AppException VALIDATION_FAILED (detail FIELD_EMAIL_DOMAIN_INVALID) when the email's
+   *   domain can't receive mail (research R18).
    * @throws AppException USER_IDENTITY_TAKEN when email, username or phone is already used.
    */
   async register(dto: RegisterDto): Promise<AuthResultDto> {
+    await this.emailDomain.assertDeliverable(dto.email);
     const passwordHash = await this.passwords.hash(dto.password);
     const user = await this.users.createUser({
       fullName: dto.fullName,

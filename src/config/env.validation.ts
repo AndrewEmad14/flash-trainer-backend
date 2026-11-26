@@ -134,6 +134,11 @@ export class EnvironmentVariables {
   @Transform(toBool)
   @IsBoolean()
   SWAGGER_ENABLED = false;
+
+  /** Reject registration emails whose domain can't receive mail (research R18). */
+  @Transform(toBool)
+  @IsBoolean()
+  EMAIL_DNS_CHECK = true;
 }
 
 /**

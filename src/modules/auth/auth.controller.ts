@@ -36,7 +36,9 @@ export class AuthController {
     description: `Creates an account and **signs this device in immediately**, then emails a verification link valid for 24 hours. The user can use the app before verifying.
 
 - The email is trimmed and lowercased. Emails and usernames are unique regardless of letter case.
-- Format problems are reported first, all fields at once (\`VALIDATION_FAILED\`). If the format is valid, all taken fields are reported at once (\`USER_IDENTITY_TAKEN\`, with \`USER_EMAIL_TAKEN\`, \`USER_USERNAME_TAKEN\` and/or \`USER_PHONE_TAKEN\` in \`details\`).
+- Format problems are reported first, all fields at once (\`VALIDATION_FAILED\`).
+- Then the email's domain must be able to receive mail. If it can't (e.g. a typo like \`gmial.con\`), the response is \`VALIDATION_FAILED\` with a \`FIELD_EMAIL_DOMAIN_INVALID\` detail on \`email\`; show "check the part after the @". If the lookup itself fails or times out, the email is accepted.
+- Finally, all taken fields are reported at once (\`USER_IDENTITY_TAKEN\`, with \`USER_EMAIL_TAKEN\`, \`USER_USERNAME_TAKEN\` and/or \`USER_PHONE_TAKEN\` in \`details\`).
 - Rate limited to 10 requests per minute per IP.`,
   })
   @ApiEnvelopeResponse(AuthResultDto, {

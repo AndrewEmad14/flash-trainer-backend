@@ -30,6 +30,7 @@ env:
   MAIL_DRIVER: console
   CORS_ORIGINS: http://localhost:3000
   SWAGGER_ENABLED: 'true'
+  EMAIL_DNS_CHECK: 'false'
 
 jobs:
   # 1. Secret scan

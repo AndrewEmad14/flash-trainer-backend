@@ -21,6 +21,11 @@ describe('validateEnv', () => {
     expect(env.MAIL_DRIVER).toBe(MailDriver.Console);
     expect(env.APP_DEEP_LINK_SCHEME).toBe('flashtrainer');
     expect(env.SWAGGER_ENABLED).toBe(false);
+    expect(env.EMAIL_DNS_CHECK).toBe(true);
+  });
+
+  it('should allow turning the email DNS check off', () => {
+    expect(validateEnv({ ...validInput(), EMAIL_DNS_CHECK: 'false' }).EMAIL_DNS_CHECK).toBe(false);
   });
 
   it('should convert numeric and boolean strings when values come from .env', () => {

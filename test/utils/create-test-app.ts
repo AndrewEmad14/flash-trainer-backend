@@ -19,6 +19,12 @@ export class TestProtectedController {
   }
 }
 
+/** Replaces an app provider with a test double. */
+export interface ProviderOverride {
+  provide: string | symbol | Type;
+  useValue: unknown;
+}
+
 type IncrementArgs = Parameters<ThrottlerStorageService['increment']>;
 
 /**
@@ -47,18 +53,22 @@ export class ResettableThrottlerStorage implements ThrottlerStorage {
 /**
  * Boots the full app exactly like `main.ts` (same pipes, filter, interceptor and guards),
  * against the test database and the console mailer (see load-test-env.ts).
- * Pass `controllers: [TestProtectedController]` to get a protected route for guard tests.
+ * Pass `controllers: [TestProtectedController]` to get a protected route for guard tests, and
+ * `providers` to replace app providers with test doubles (e.g. a fake DNS resolver).
  */
 export async function createTestApp(
-  options: { controllers?: Type[] } = {},
+  options: { controllers?: Type[]; providers?: ProviderOverride[] } = {},
 ): Promise<NestExpressApplication> {
-  const moduleRef = await Test.createTestingModule({
+  let builder = Test.createTestingModule({
     imports: [AppModule],
     controllers: options.controllers ?? [],
   })
     .overrideProvider(ThrottlerStorage)
-    .useValue(new ResettableThrottlerStorage())
-    .compile();
+    .useValue(new ResettableThrottlerStorage());
+  for (const override of options.providers ?? []) {
+    builder = builder.overrideProvider(override.provide).useValue(override.useValue);
+  }
+  const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true });
   setupApp(app);
   await app.init();

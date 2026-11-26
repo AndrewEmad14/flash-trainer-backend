@@ -13,6 +13,8 @@ export function loadTestEnv(): void {
   process.env.NODE_ENV = 'test';
   process.env.MAIL_DRIVER = 'console';
   process.env.SWAGGER_ENABLED = 'true';
+  // No network lookups in tests. The domain check is tested with a fake resolver.
+  process.env.EMAIL_DNS_CHECK = 'false';
   process.env.LOG_LEVEL = process.env.LOG_LEVEL_TEST ?? 'silent';
   if (process.env.TEST_DATABASE_URL) {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
