@@ -22,6 +22,24 @@ const EXAMPLE_DETAILS: Partial<Record<ErrorCode, ErrorEnvelope['error']['details
   ],
 };
 
+/** Response headers that accompany specific error codes. */
+const ERROR_HEADERS: Partial<
+  Record<ErrorCode, Record<string, { description: string; schema: { type: 'integer' } }>>
+> = {
+  AUTH_TOO_MANY_ATTEMPTS: {
+    'Retry-After': {
+      description: 'Seconds until sign-in is allowed again.',
+      schema: { type: 'integer' },
+    },
+  },
+  RATE_LIMIT_EXCEEDED: {
+    'Retry-After': {
+      description: 'Seconds until the rate limit resets.',
+      schema: { type: 'integer' },
+    },
+  },
+};
+
 /**
  * Builds the example error envelope for a catalogued code.
  *
@@ -58,6 +76,10 @@ export function ApiErrorResponses(...codes: ErrorCode[]): MethodDecorator & Clas
       status,
       description: group.map((code) => `\`${code}\``).join(', '),
       type: ErrorEnvelopeDto,
+      headers: Object.assign({}, ...group.map((code) => ERROR_HEADERS[code] ?? {})) as Record<
+        string,
+        { description: string; schema: { type: 'integer' } }
+      >,
       examples: Object.fromEntries(
         group.map((code) => [code, { summary: code, value: errorEnvelopeExample(code) }]),
       ),

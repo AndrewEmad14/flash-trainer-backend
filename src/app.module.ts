@@ -6,7 +6,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { LoggerModule } from './common/logging/logger.module';
 import { AppConfigModule } from './config/config.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { MailModule } from './modules/mail/mail.module';
+import { UsersModule } from './modules/users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 /** Global default: 100 requests per minute per IP (research R7). */
@@ -26,6 +28,8 @@ export const DEFAULT_THROTTLE = { name: 'default', ttl: 60_000, limit: 100 } as 
     JwtModule.register({ global: true }),
     HealthModule,
     MailModule,
+    UsersModule,
+    AuthModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

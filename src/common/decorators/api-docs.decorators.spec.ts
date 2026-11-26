@@ -45,6 +45,23 @@ describe('API doc decorators', () => {
     ]);
   });
 
+  it('should document Retry-After on 429 responses', () => {
+    @Controller()
+    class Limited {
+      @Get()
+      @ApiErrorResponses(ErrorCode.AUTH_TOO_MANY_ATTEMPTS)
+      handler(): void {
+        /* no-op */
+      }
+    }
+    const limited = Reflect.getMetadata(API_RESPONSE_KEY, Limited.prototype.handler) as Record<
+      string,
+      { headers?: Record<string, unknown> }
+    >;
+
+    expect(limited['429']?.headers).toHaveProperty('Retry-After');
+  });
+
   it('should build example envelopes from the catalog', () => {
     expect(errorEnvelopeExample(ErrorCode.SESSION_NOT_FOUND)).toEqual({
       success: false,
