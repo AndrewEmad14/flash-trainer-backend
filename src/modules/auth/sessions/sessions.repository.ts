@@ -102,4 +102,25 @@ export class SessionsRepository {
       where: { id, userId, revokedAt: null, expiresAt: { gt: new Date() } },
     });
   }
+
+  /**
+   * Attaches a push token to an **active** session (research R13). In one transaction, the
+   * same token is cleared from every other session, because a token identifies one app
+   * install, so it belongs to exactly one session.
+   *
+   * @returns `false` if the session is no longer active (nothing changed).
+   */
+  async setPushToken(sessionId: string, fcmToken: string): Promise<boolean> {
+    const [, assigned] = await this.prisma.$transaction([
+      this.prisma.authSession.updateMany({
+        where: { fcmToken, id: { not: sessionId } },
+        data: { fcmToken: null },
+      }),
+      this.prisma.authSession.updateMany({
+        where: { id: sessionId, revokedAt: null, expiresAt: { gt: new Date() } },
+        data: { fcmToken },
+      }),
+    ]);
+    return assigned.count === 1;
+  }
 }

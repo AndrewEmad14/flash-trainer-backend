@@ -104,4 +104,28 @@ describe('SessionsRepository', () => {
       },
     });
   });
+
+  it('should move the push token to this session in one transaction', async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-25T10:00:00Z') });
+    const updateMany = jest.fn((args: unknown) => args);
+    const $transaction = jest
+      .fn()
+      .mockResolvedValueOnce([{ count: 1 }, { count: 1 }])
+      .mockResolvedValueOnce([{ count: 0 }, { count: 0 }]);
+    const repo = new SessionsRepository({
+      authSession: { updateMany },
+      $transaction,
+    } as unknown as PrismaService);
+
+    await expect(repo.setPushToken('s1', 'fcm')).resolves.toBe(true);
+    await expect(repo.setPushToken('s1', 'fcm')).resolves.toBe(false);
+    expect(updateMany).toHaveBeenNthCalledWith(1, {
+      where: { fcmToken: 'fcm', id: { not: 's1' } },
+      data: { fcmToken: null },
+    });
+    expect(updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: 's1', revokedAt: null, expiresAt: { gt: new Date('2026-11-25T10:00:00Z') } },
+      data: { fcmToken: 'fcm' },
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, HttpCode, HttpStatus, Param } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ApiEnvelopeResponse } from '../../../common/decorators/api-envelope-response.decorator';
 import { ApiErrorResponses } from '../../../common/decorators/api-error-responses.decorator';
@@ -7,6 +7,7 @@ import { ErrorCode } from '../../../common/errors/error-codes';
 import type { AuthenticatedUser } from '../../../common/http/authenticated-request';
 import { uuidParam } from '../../../common/pipes/uuid-param.pipe';
 import { SessionResponseDto } from '../dto/session-response.dto';
+import { UpdatePushTokenDto } from '../dto/update-push-token.dto';
 import { SessionsService } from './sessions.service';
 
 const TOKEN_ERRORS = [
@@ -71,6 +72,31 @@ export class SessionsController {
     @Param('sessionId', uuidParam('sessionId')) sessionId: string,
   ): Promise<null> {
     await this.sessions.revokeOwnSession(user.userId, sessionId);
+    return null;
+  }
+
+  /**
+   * PUT /api/v1/auth/sessions/current/push-token (US10).
+   *
+   * @throws AppException VALIDATION_FAILED, AUTH_SESSION_INVALID, AUTH_TOKEN_*.
+   */
+  @Put('current/push-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Save this device's push-notification token",
+    description: `Attaches the device's FCM registration token to the session making the request, replacing any earlier one. Call it after signing in, and again whenever Firebase gives the app a new token.
+
+- If another session already has the same token (e.g. the same phone signed in again), it's moved to this session, so a device never gets duplicate notifications.
+- Signing out (this device, remotely, or everywhere) drops the token.
+- \`AUTH_SESSION_INVALID\`: this session was signed out or expired. Sign in again.`,
+  })
+  @ApiEnvelopeResponse(null, { description: 'Token saved.' })
+  @ApiErrorResponses(ErrorCode.VALIDATION_FAILED, ErrorCode.AUTH_SESSION_INVALID, ...TOKEN_ERRORS)
+  async updatePushToken(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdatePushTokenDto,
+  ): Promise<null> {
+    await this.sessions.updatePushToken(user.sessionId, dto.pushToken);
     return null;
   }
 }

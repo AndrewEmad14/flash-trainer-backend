@@ -13,6 +13,7 @@ describe('SessionsService', () => {
     revokeAllForUser: jest.fn(),
     listActive: jest.fn(),
     findActiveByIdForUser: jest.fn(),
+    setPushToken: jest.fn(),
   };
   const tokens = { issueRefreshToken: jest.fn(), signAccessToken: jest.fn() };
   const service = new SessionsService(
@@ -202,6 +203,24 @@ describe('SessionsService', () => {
         code: ErrorCode.SESSION_NOT_FOUND,
       });
       expect(repository.revoke).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updatePushToken', () => {
+    it('should save the token on the session', async () => {
+      repository.setPushToken.mockResolvedValue(true);
+
+      await service.updatePushToken('s1', 'fcm');
+
+      expect(repository.setPushToken).toHaveBeenCalledWith('s1', 'fcm');
+    });
+
+    it('should throw AUTH_SESSION_INVALID when the session is no longer active', async () => {
+      repository.setPushToken.mockResolvedValue(false);
+
+      await expect(service.updatePushToken('s1', 'fcm')).rejects.toMatchObject({
+        code: ErrorCode.AUTH_SESSION_INVALID,
+      });
     });
   });
 });
