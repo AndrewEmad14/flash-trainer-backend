@@ -30,6 +30,14 @@ const STATUS_TO_CODE: ReadonlyMap<number, ErrorCode> = new Map<number, ErrorCode
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
+  /**
+   * Writes the error envelope for any exception thrown while handling an HTTP request.
+   * The `X-Request-Id` header always matches `meta.requestId`, even for errors raised before
+   * the logger middleware ran (e.g. malformed JSON).
+   *
+   * @param exception - Whatever was thrown.
+   * @param host - Gives access to the Express request and response.
+   */
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const request = http.getRequest<Request>();

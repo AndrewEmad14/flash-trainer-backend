@@ -1,5 +1,6 @@
 import { JwtService } from '@nestjs/jwt';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { PrismaHealthIndicator } from '@nestjs/terminus';
 import request, { type Response } from 'supertest';
 import { buildOpenApiDocument } from '../../src/swagger.setup';
 import { expectErrorEnvelope } from '../utils/assertions';
@@ -127,4 +128,60 @@ describe('Cross-cutting errors on every endpoint (T125)', () => {
       });
     },
   );
+
+  describe.each(
+    ENDPOINTS.filter((e) => e.throttle === 'default').map((e) => [label(e), e] as const),
+  )('%s (default rate limit)', (_label, endpoint) => {
+    it('should return RATE_LIMIT_EXCEEDED with Retry-After on the 101st request in a minute', async () => {
+      for (let i = 0; i < 100; i += 1) {
+        expect((await send(endpoint, undefined, endpoint.invalidBody ?? {})).status).not.toBe(429);
+      }
+
+      const limited = await send(endpoint, undefined, endpoint.invalidBody ?? {});
+
+      expectErrorEnvelope(limited, 429, 'RATE_LIMIT_EXCEEDED');
+      expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
+    });
+  });
+
+  describe('GET /health', () => {
+    it('should return RATE_LIMIT_EXCEEDED on the 101st request in a minute', async () => {
+      for (let i = 0; i < 100; i += 1) {
+        expect((await request(app.getHttpServer()).get('/api/v1/health')).status).toBe(200);
+      }
+
+      expectErrorEnvelope(
+        await request(app.getHttpServer()).get('/api/v1/health'),
+        429,
+        'RATE_LIMIT_EXCEEDED',
+      );
+    });
+  });
+});
+
+describe('GET /health with the database down (T137)', () => {
+  let app: NestExpressApplication;
+
+  beforeAll(async () => {
+    const failingPing = {
+      pingCheck: (key: string) =>
+        Promise.resolve({
+          [key]: { status: 'down', message: 'connect ECONNREFUSED db-internal:5432' },
+        }),
+    };
+    app = await createTestApp({
+      providers: [{ provide: PrismaHealthIndicator, useValue: failingPing }],
+    });
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('should return 503 SERVICE_UNAVAILABLE without exposing which dependency failed', async () => {
+    const response = await request(app.getHttpServer()).get('/api/v1/health');
+
+    expectErrorEnvelope(response, 503, 'SERVICE_UNAVAILABLE');
+    expect(JSON.stringify(response.body)).not.toMatch(/database|db-internal|ECONNREFUSED/);
+  });
 });
